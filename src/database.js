@@ -4,7 +4,7 @@ const pool =  mysql.createPool(
                 {
                     host                : "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
                     user                : "avnadmin",
-                    password            : "AVNS_fCwsxkOkRUpTc3Jouee",
+                    password            : "",
                     database            : "BeatCraft",
                     waitForConnections  : true,
                     connectionLimit     : 10,
