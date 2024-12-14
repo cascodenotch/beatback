@@ -2,9 +2,9 @@ const { Router } = require("express");
 const router = Router();
 const setCtrl = require("../controller/set.controller");
 
-router.get("/set", userCtrl.getSet);
-router.put("/set", userCtrl.putSet);
-router.post("/set", userCtrl.postSet);
-router.delete("/set", userCtrl.deleteSet);
+router.get("/set", setCtrl.getSet);
+router.put("/set", setCtrl.putSet);
+router.post("/set", setCtrl.postSet);
+router.delete("/set", setCtrl.deleteSet);
 
 module.exports = router; 
