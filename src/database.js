@@ -1,18 +1,30 @@
 const mysql = require("mysql2");
 
-const pool =  mysql.createPool(
-                {
-                    host                : "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
-                    user                : "avnadmin",
-                    password            : "AVNS_fCwsxkOkRUpTc3Jouee",
-                    database            : "BeatCraft",
-                    waitForConnections  : true,
-                    connectionLimit     : 10,
-                    maxIdle             : 10, 
-                    idleTimeout         : 60000, 
-                    queueLimit          : 0
-                }).promise();
+// const pool =  mysql.createPool(
+//                 {
+//                     host                : "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
+//                     user                : "avnadmin",
+//                     password            : "AVNS_fCwsxkOkRUpTc3Jouee",
+//                     database            : "BeatCraft",
+//                     waitForConnections  : true,
+//                     connectionLimit     : 10,
+//                     maxIdle             : 10, 
+//                     idleTimeout         : 60000, 
+//                     queueLimit          : 0
+//                 }).promise();
 
-console.log("Conexión con la BBDD Creada");
+// console.log("Conexión con la BBDD Creada");
 
-module.exports = {pool};
+// module.exports = {pool};
+
+
+const connection = mysql.createConnection({
+                host : process.env.DB_HOST || "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
+                user : process.env.DB_USER || "avnadmin",
+                password : process.env.DB_PASSWORD || "AVNS_fCwsxkOkRUpTc3Jouee",
+                database : process.env.DB_NAME || "BeatCraft",
+                port : process.env.DB_PORT || 10834,
+                connectionLimit: 10
+});
+
+module.exports = {connection};
