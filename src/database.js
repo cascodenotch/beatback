@@ -26,5 +26,6 @@ const connection = mysql.createConnection({
                 port : process.env.DB_PORT || 10834,
                 connectionLimit: 10
 });
+console.log("Conexión con la BBDD Creada");
 
 module.exports = {connection};
