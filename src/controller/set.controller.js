@@ -1,6 +1,6 @@
 const {pool} = require("../database");
-const spotifyAuth = require("./spotifyAuth");
-const axios = require("axios");
+// const spotifyAuth = require("./spotifyAuth");
+// const axios = require("axios");
 
 async function addSet (request, response){
 
