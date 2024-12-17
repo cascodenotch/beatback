@@ -1,8 +1,8 @@
 const querystring = require("querystring");
 const axios = require("axios");
 
-const client_id = "TU_CLIENT_ID_DE_SPOTIFY";
-const client_secret = "TU_CLIENT_SECRET_DE_SPOTIFY";
+const client_id = "0186d7c12abc4561bdeec31c8480496a";
+const client_secret = "648001fad97c4e5aa3915a5936088db8";
 const redirect_uri = "http://localhost:3000/callback"; 
 
 const spotifyAuth = {
