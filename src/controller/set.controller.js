@@ -1,4 +1,6 @@
-const {pool} = require("../database")
+const {pool} = require("../database");
+const spotifyAuth = require("./spotifyAuth");
+const axios = require("axios");
 
 async function addSet (request, response){
 
@@ -6,15 +8,12 @@ async function addSet (request, response){
     
     try {
 
-        const sql = `INSERT INTO djset (id_set, id_user, titulo, imagen) VALUES (?, ?, ?, ?)`;
+        const sql = `INSERT INTO djset (id_user, titulo, imagen) VALUES (?, ?, ?)`;
         const values = [
-        request.body.id_set,
         request.body.id_user,
         request.body.titulo,
         request.body.imagen,
         ];
-
-        console.log (request.body)
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en añadir set:", { sql, values, result });
@@ -23,7 +22,7 @@ async function addSet (request, response){
             error: false,
             codigo: 200,
             mensaje: 'Set añadido con éxito',
-            data: result
+            id_set: result.insertId
         };
     }
         
