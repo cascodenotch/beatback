@@ -70,17 +70,36 @@ async function spotifyCallback(req, res) {
 
         console.log("Datos del usuario:", userData);
 
-        // Guardar los datos del usuario en la base de datos
-        const sql = `INSERT INTO user (email, photo, id_spotify, token) VALUES (?, ?, ?, ?)`;
-        const params = [
-            userData.email,                             
-            userData.images[0]?.url || "",             
-            userData.id,                               
-            tokenData.access_token                     
-        ];
-        await pool.query(sql, params);
+        // Comprobar si el usuario ya existe en la base de datos
+        const [existingUser] = await pool.query(
+            "SELECT * FROM user WHERE id_spotify = ?",
+            [userData.id]
+        );
 
-        res.redirect("http://localhost:4200/editar-set-vacia"); // Redirigir al frontend
+        if (existingUser.length === 0) {
+            // Si el usuario no existe, crearlo
+            const sql = `INSERT INTO user (email, photo, id_spotify, token) VALUES (?, ?, ?, ?)`;
+            const params = [
+                userData.email,                             
+                userData.images[0]?.url || "",             
+                userData.id,                               
+                tokenData.access_token                     
+            ];
+            await pool.query(sql, params);
+            console.log("Nuevo usuario creado.");
+        } else {
+            // Si el usuario ya existe, actualizar el token
+            const sql = `UPDATE user SET token = ? WHERE id_spotify = ?`;
+            const params = [
+                tokenData.access_token,  
+                userData.id              
+            ];
+            await pool.query(sql, params);
+            console.log("Token actualizado para el usuario existente.");
+        }
+
+        // Redirigir al frontend con el token como parámetro en la URL
+        res.redirect(`http://localhost:4200/editar-set-vacia?token=${tokenData.access_token}`);
         console.log("Vinculación exitosa");
     } catch (error) {
         console.error("Error en Spotify Callback:", error.message);
@@ -88,28 +107,45 @@ async function spotifyCallback(req, res) {
     }
 }
 
-
-
-
-async function getUser(req, res){
-    const id_spotify = req.query.id_spotify; // El ID de Spotify debe venir del frontend.
-
+// Método PUT para obtener los datos del usuario basado en el token
+const putUser = async (request, response) => {
     try {
-        const [rows] = await pool.query(
-            "SELECT * FROM user WHERE spotifyId = ?",
-            [id_spotify]
-        );
+        const token = request.body.token;
 
-        if (rows.length === 0) {
-            return res.status(404).json({ error: "Usuario no encontrado" });
+        if (!token) {
+            return response.status(400).json({ error: true, mensaje: 'Token no recibido' });
         }
 
-        res.json(rows[0]);
-    } catch (error) {
-        console.error("Error al obtener usuario:", error.message);
-        res.status(500).json({ error: "Error al obtener usuario" });
+        // Obtener los datos del usuario usando el token
+        const [userData] = await pool.query(
+            "SELECT email, photo, id_spotify FROM user WHERE token = ?",
+            [token]
+        );
+
+        if (userData.length === 0) {
+            return response.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+        }
+
+        // Devolver los datos del usuario como respuesta
+        const user = {
+            email: userData[0].email,
+            photo: userData[0].photo,
+            id_spotify: userData[0].id_spotify
+        };
+
+        // Respuesta similar a la estructura que mencionaste
+        let respuesta = {error: false, codigo: 200, mensaje: "Datos del usuario obtenidos correctamente", data: user};
+
+        response.send(respuesta);
+    } catch (err) {
+        console.error("Error al obtener los datos del usuario:", err);
+        response.status(500).json({
+            error: true,
+            mensaje: 'Error interno del servidor al obtener los datos del usuario'
+        });
     }
 };
 
-module.exports = { spotifyLogin, spotifyCallback, getUser };
+
+module.exports = { spotifyLogin, spotifyCallback, putUser };
 
