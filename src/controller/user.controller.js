@@ -8,7 +8,7 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
 // Iniciar autenticación con Spotify
-const spotifyLogin = (req, res) => {
+async function spotifyLogin (req, res) {
     const scope = 'user-read-email user-read-private'; // Permisos necesarios
 
     // Verifica que process.env.SPOTIFY_CLIENT_ID esté cargado correctamente
@@ -26,10 +26,9 @@ const spotifyLogin = (req, res) => {
 };
 
 // Guardar usuario en la base de datos después de la autenticación
-const spotifyCallback = async (req, res) => {
+async function spotifyCallback(req, res) {
     const code = req.query.code;
-
-    console.log("Código recibido de Spotify:", code);  // Verifica el código recibido
+    console.log("Código recibido de Spotify:", code);
 
     if (!code) {
         return res.status(400).send('Código de autorización no recibido');
@@ -37,12 +36,13 @@ const spotifyCallback = async (req, res) => {
 
     try {
         // Intercambiar el código por el token usando axios
-        const response = await axios.post('https://accounts.spotify.com/api/token', 
+        const response = await axios.post(
+            'https://accounts.spotify.com/api/token',
             querystring.stringify({
                 grant_type: 'authorization_code',
                 code,
                 redirect_uri: REDIRECT_URI,
-            }), 
+            }),
             {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -53,15 +53,9 @@ const spotifyCallback = async (req, res) => {
             }
         );
 
-        if (response.status !== 200) {
-            console.error('Error al obtener el token:', response.data);
-            return res.status(500).send('Error al intercambiar el código por un token');
-        }
+        const tokenData = response.data;
+        console.log("token: ", tokenData);
 
-        const tokenData = response.data; // El token de acceso recibido
-        console.log('Token de acceso recibido:', tokenData);  // Verifica el token recibido
-
-        // Verificar que el token de acceso se está pasando correctamente
         if (!tokenData.access_token) {
             console.error('Token de acceso no encontrado en la respuesta:', tokenData);
             return res.status(500).send('Error: Token de acceso no encontrado');
@@ -72,39 +66,38 @@ const spotifyCallback = async (req, res) => {
             headers: { Authorization: `Bearer ${tokenData.access_token}` },
         });
 
-        // Verificar si la respuesta es exitosa
-        if (userResponse.status !== 200) {
-            console.error("Error al obtener los datos del usuario:", userResponse.data);
-            throw new Error("Error al obtener los datos del usuario de Spotify");
-        }
-
-        console.log("Datos del usuario:", userResponse.data);
         const userData = userResponse.data;
 
+        console.log("Datos del usuario:", userData);
+
         // Guardar los datos del usuario en la base de datos
-        const sql = `INSERT INTO user (email, photo, id_spotify) VALUES (?, ?, ?)`;
+        const sql = `INSERT INTO user (email, photo, id_spotify, token) VALUES (?, ?, ?, ?)`;
         const params = [
-            request.body.email,
-            request.body.images[0]?.url || "",
-            request.body.userId,
+            userData.email,                             
+            userData.images[0]?.url || "",             
+            userData.id,                               
+            tokenData.access_token                     
         ];
         await pool.query(sql, params);
 
-        res.redirect("http://localhost:4200"); // Redirigir al frontend
+        res.redirect("http://localhost:4200/editar-set-vacia"); // Redirigir al frontend
+        console.log("Vinculación exitosa");
     } catch (error) {
         console.error("Error en Spotify Callback:", error.message);
         res.status(500).json({ error: "Error al autenticar con Spotify" });
     }
-};
+}
 
 
-const getUser = async (req, res) => {
-    const userId = req.query.spotifyId; // El ID de Spotify debe venir del frontend.
+
+
+async function getUser(req, res){
+    const id_spotify = req.query.id_spotify; // El ID de Spotify debe venir del frontend.
 
     try {
-        const [rows] = await connection.promise().query(
+        const [rows] = await pool.query(
             "SELECT * FROM user WHERE spotifyId = ?",
-            [userId]
+            [id_spotify]
         );
 
         if (rows.length === 0) {
