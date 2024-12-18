@@ -83,4 +83,38 @@ async function changeTitle (request, response){
     response.send (respuesta);
 }
 
-module.exports = {addSet, changeTitle};
+async function getSet (request, response){
+
+    let respuesta; 
+    
+    try {
+
+        const sql = `SELECT * FROM djset
+        WHERE id_set = ?`;
+        const params = [request.query.id_set];
+
+        const [result] = await pool.query(sql, params);
+        console.info("Consulta exitosa en get set:", { sql, params, result });
+
+        respuesta = {
+            error: false,
+            codigo: 200,
+            mensaje: 'Set cargado con éxito',
+            set: result[0]
+        };
+    }
+        
+    catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno get set',
+            detalles: error.message  
+        };
+    }
+
+    response.send (respuesta);
+}
+
+module.exports = {addSet, changeTitle, getSet};
