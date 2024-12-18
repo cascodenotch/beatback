@@ -84,11 +84,11 @@ const spotifyCallback = async (req, res) => {
         // Guardar los datos del usuario en la base de datos
         const sql = `INSERT INTO user (email, photo, id_spotify) VALUES (?, ?, ?)`;
         const params = [
-            userData.email,
-            userData.images[0]?.url || "",
-            userData.userId,
+            request.body.email,
+            request.body.images[0]?.url || "",
+            request.body.userId,
         ];
-        await pool.promise().query(sql, params);
+        await pool.query(sql, params);
 
         res.redirect("http://localhost:4200"); // Redirigir al frontend
     } catch (error) {
