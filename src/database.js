@@ -10,12 +10,10 @@ const pool = mysql.createPool({
     maxIdle: 10, // Número máximo de conexiones inactivas (opcional)
     idleTimeout: 60000, // Tiempo máximo para una conexión inactiva (opcional)
     queueLimit: 0, // Sin límite en la cola de solicitudes
-});
+}).promise();
 
-// Usar el método .promise() aquí
-const promisePool = pool.promise();
+
 
 console.log("Conexión con la BBDD Creada");
 
-// Exportar el pool basado en promesas
-module.exports = promisePool;
+module.exports = {pool};
