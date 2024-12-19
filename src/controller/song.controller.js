@@ -114,6 +114,32 @@ const searchTracks = async (req, res) => {
   }
 };
 
+const getTrackUrl = async (req, res) => {
+  try {
+      const accessToken = req.headers.authorization?.split(' ')[1];
+      const songId = req.params.songId; // Verificar que el songId está siendo recibido correctamente
+      
+      if (!accessToken || !songId) {
+          return res.status(400).json({ message: 'Access token or song ID missing' });
+      }
 
-module.exports = { getSavedTracks, searchTracks };
+      // Solicitar a la API de Spotify para obtener la URL de la canción
+      const response = await axios.get(`https://api.spotify.com/v1/tracks/${songId}`, {
+          headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+          }
+      });
+
+      const trackUrl = `https://open.spotify.com/embed/track/${response.data.id}`;
+      res.json({ url: trackUrl });
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error al obtener la URL de la canción' });
+  }
+};
+
+
+
+module.exports = { getSavedTracks, searchTracks, getTrackUrl };
 
