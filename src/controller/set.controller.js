@@ -256,4 +256,37 @@ async function getSetSongs (request, response){
     response.send (respuesta);
 }
 
-module.exports = {addSet, changeTitle, getSet, deleteSong, getSetSongs};
+async function addSongToSet(request, response) {
+    let respuesta;
+
+    try {
+        const { setId, songId } = request.body; // Obtenemos el ID del set y el ID de la canción
+        // Paso 1: Insertamos la relación entre la canción y el set
+        const sql = `INSERT INTO setsong (id_set, id_song) VALUES (?, ?)`;
+        const values = [setId, songId];
+
+        const [result] = await pool.query(sql, values);
+        console.info("Canción añadida al set con éxito:", { sql, values, result });
+
+        respuesta = {
+            error: false,
+            codigo: 200,
+            mensaje: 'Canción añadida al set con éxito',
+            result,
+        };
+
+    } catch (error) {
+        console.log('Error al añadir canción al set:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno al añadir canción al set',
+            detalles: error.message,
+        };
+    }
+
+    response.send(respuesta);
+}
+
+
+module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong };
