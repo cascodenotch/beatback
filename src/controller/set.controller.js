@@ -1,5 +1,6 @@
 const {pool} = require("../database");
 const axios = require("axios");
+const {Song} = require ("../models/song")
 
 async function addSet (request, response){
 
@@ -116,8 +117,7 @@ async function getSet (request, response){
     
     try {
 
-        const sql = `SELECT * FROM djset
-        WHERE id_set = ?`;
+        const sql = `SELECT * FROM djset WHERE id_set = ?`;
         const params = [request.query.id_set];
 
         const [result] = await pool.query(sql, params);
@@ -144,4 +144,116 @@ async function getSet (request, response){
     response.send (respuesta);
 }
 
-module.exports = {addSet, changeTitle, getSet};
+async function deleteSong (request, response){
+
+    let respuesta; 
+    
+    try {
+
+        const sql = `DELETE FROM setsong WHERE id_song = ? AND id_set = ?`;
+        const values = [request.body.id_song, request.body.id_set];
+
+        const [result] = await pool.query(sql, values);
+        console.info("Consulta exitosa en delete song:", { sql, values, result });
+
+        if (result.affectedRows > 0) {
+            respuesta = {
+                error: false,
+                codigo: 200,
+                mensaje: 'Canción eliminada con éxito',
+            };
+        } else {
+            respuesta = {
+                error: true,
+                codigo: 404,
+                mensaje: 'No existe ese id de canción o id de set'
+            };
+        }
+
+    }catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno eliminar cancion',
+            detalles: error.message  
+        };
+    }
+
+    response.send (respuesta);
+}
+
+async function getSetSongs (request, response){
+
+    let respuesta; 
+    
+    try {
+
+        // Paso 1: Obtener los ids de las canciones en el set
+
+        const sql = `SELECT * FROM setsong WHERE id_set = ?`;
+        const params = [request.query.id_set];
+
+        const [result] = await pool.query(sql, params);
+        console.info("Consulta exitosa en get set songs:", { sql, params, result });
+
+        const idSongsArray = result.map(song => song.id_song);
+        console.log (idSongsArray);
+        const ids = idSongsArray.join(',');
+        console.log (ids);
+
+        // Paso 2: Obtener id_spotify y token del usuario desde la base de datos
+        const userQuery = `
+        SELECT user.token 
+        FROM user 
+        JOIN djset ON user.id_user = djset.id_user
+        WHERE djset.id_set = ?`;
+    
+        const values2 = [request.query.id_set];
+        const [userResult] = await pool.query(userQuery, values2);
+        
+        const token = userResult[0]?.token;
+        console.log(token);
+
+        // Paso 3: Obtener la información de las canciones usando la API 
+        const spotifyApiUrl = await axios.get('https://api.spotify.com/v1/tracks', {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        params: {
+            ids: ids
+        }
+        });
+        
+        // Paso 4: Crear las instancias de Song con los datos de la API
+        const songs = spotifyApiUrl.data.tracks.map(track => {
+            return new Song(
+                track.album.images[0]?.url, 
+                track.artists.map(artist => artist.name).join(', '),
+                track.duration_ms,           
+                track.id,                    
+                track.name                   
+            );
+        });
+
+        respuesta = {
+            error: false,
+            codigo: 200,
+            mensaje: 'Canciones cargadas con éxito',
+            songs: songs
+    }
+        
+    }catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno get set songs',
+            detalles: error.message  
+        };
+    }
+
+    response.send (respuesta);
+}
+
+module.exports = {addSet, changeTitle, getSet, deleteSong, getSetSongs};
