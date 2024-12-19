@@ -24,6 +24,7 @@ async function addSet (request, response){
         const [userResult] = await pool.query(userQuery,values2);
 
         const id_spotify = userResult[0].id_spotify;
+        console.log (id_spotify);
         const token = userResult[0].token;
         console.log(token);
 

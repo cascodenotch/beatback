@@ -9,7 +9,7 @@ const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
 // Iniciar autenticación con Spotify
 async function spotifyLogin(req, res) {
-    const scope = 'user-read-email user-read-private user-library-read'; // Permisos necesarios
+    const scope = 'user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private'; // Permisos necesarios
 
     if (!CLIENT_ID) {
         return res.status(500).send('Missing SPOTIFY_CLIENT_ID environment variable');
