@@ -87,6 +87,7 @@ async function changeTitle (request, response){
     
     try {
 
+        // Paso 1: Cambiar titulo en la BBDD
         const sql = `UPDATE djset 
         SET titulo = COALESCE (?, titulo)
         WHERE id_set = ?`;
@@ -97,6 +98,35 @@ async function changeTitle (request, response){
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en cambiar titulo:", { sql, values, result });
+
+        // Paso 2: Obtener token del usuario y el id_playlist desde la base de datos
+        const userQuery = `
+        SELECT user.token, djset.id_playlist
+        FROM user
+        JOIN djset ON user.id_user = djset.id_user
+        WHERE djset.id_set = ?;`;
+
+        const values2 = [request.body.id_set];
+        const [userResult] = await pool.query(userQuery, values2);
+        
+        const token = userResult[0].token;
+        const id_playlist = userResult[0].id_playlist;
+    
+        console.info("Token obtenido:", token);
+        console.info("ID de la playlist obtenida:", id_playlist);
+
+        // Paso 3: Cambiar titulo usando la API 
+        const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}`;
+        const spotifyResponse = await axios.put(spotifyApiUrl, {
+            name: request.body.titulo, // Cuerpo de la solicitud
+        }, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        console.info("Spotify API Response:", spotifyResponse.data);
 
         if (result.affectedRows > 0){
             respuesta = {
