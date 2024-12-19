@@ -19,6 +19,8 @@ async function addSet (request, response){
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en añadir set:", { sql, values, result });
 
+        const id_set = result.insertId; 
+
         // Paso 2: Obtener id_spotify y token del usuario desde la base de datos
         const userQuery = `SELECT id_spotify, token FROM user WHERE id_user = ?`;
         const values2 = [request.body.id_user];
@@ -46,6 +48,18 @@ async function addSet (request, response){
         });
 
         console.info("Playlist creada en Spotify:", spotifyResponse.data);
+
+        // Paso 4 capturar la id de la playlist en spotify
+        const playlistId = spotifyResponse.data.id; // ID de la playlist creada
+        console.info("Playlist creada en Spotify con ID:", playlistId);
+
+        // Paso 5 añadir id de la playlist en bbdd
+        const updateSql = `UPDATE djset SET id_playlist = ? WHERE id_set = ?`;
+        const updateValues = [playlistId, id_set];
+        const [updateResult] = await pool.query(updateSql, updateValues);
+        console.info("Tabla djset actualizada con id_playlist:", { updateSql, updateValues, updateResult });
+
+        // rta bdd
 
         respuesta = {
             error: false,
@@ -150,11 +164,46 @@ async function deleteSong (request, response){
     
     try {
 
+        // Paso 1: Eliminar la canción en la bbdd
+
         const sql = `DELETE FROM setsong WHERE id_song = ? AND id_set = ?`;
         const values = [request.body.id_song, request.body.id_set];
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en delete song:", { sql, values, result });
+
+        // Paso 2: Obtener token del usuario desde la base de datos
+        const userQuery = `
+        SELECT user.token 
+        FROM user 
+        JOIN djset ON user.id_user = djset.id_user
+        WHERE djset.id_set = ?`;
+    
+        const values2 = [request.query.id_set];
+        const [userResult] = await pool.query(userQuery, values2);
+        
+        const token = userResult[0]?.token;
+        console.log(token);
+
+        // Paso 3: Eliminar la canción usando la API 
+        // const trackUri = `spotify:track:${request.body.id_song}`; // ID de la canción a eliminar en formato URI
+
+        // const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks`;
+        // const deleteBody = {
+        //     tracks: [{ uri: trackUri }],
+        // };
+
+        // const spotifyResponse = await axios.delete(spotifyApiUrl, {
+        //     headers: {
+        //         'Authorization': `Bearer ${token}`,
+        //         'Content-Type': 'application/json',
+        //     },
+        //     data: deleteBody,
+        // });
+
+        // console.info("Spotify API Response:", spotifyResponse.data);
+
+        // Rta bbdd
 
         if (result.affectedRows > 0) {
             respuesta = {
@@ -202,7 +251,7 @@ async function getSetSongs (request, response){
         const ids = idSongsArray.join(',');
         console.log (ids);
 
-        // Paso 2: Obtener id_spotify y token del usuario desde la base de datos
+        // Paso 2: Obtener token del usuario desde la base de datos
         const userQuery = `
         SELECT user.token 
         FROM user 
