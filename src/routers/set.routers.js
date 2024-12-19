@@ -7,6 +7,7 @@ const setCtrl = require("../controller/set.controller");
 router.get("/set", setCtrl.getSet);
 router.put("/set/title", setCtrl.changeTitle);
 router.post("/set", setCtrl.addSet);
+router.post("/set/song", setCtrl.addSongToSet);
 // router.delete("/set/song", setCtrl.deleteSong);
 // router.get("/set/analisis", setCtrl.songAnalysis);
 
