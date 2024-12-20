@@ -348,6 +348,40 @@ async function addSongToSet(request, response) {
         const [result] = await pool.query(sql, values);
         console.info("Canción añadida al set con éxito:", { sql, values, result });
 
+        // Paso 2: Obtener token del usuario y el id_playlist desde la base de datos
+        const userQuery = `
+        SELECT user.token, djset.id_playlist
+        FROM user
+        JOIN djset ON user.id_user = djset.id_user
+        WHERE djset.id_set = ?;`;
+
+        const values2 = [request.body.setId];
+        const [userResult] = await pool.query(userQuery, values2);
+        
+        const token = userResult[0]?.token;
+        const id_playlist = userResult[0]?.id_playlist;
+    
+        console.info("Token obtenido:", token);
+        console.info("ID de la playlist obtenida:", id_playlist);
+
+        // Paso 3: Añadir la canción usando la API 
+        const trackUri = `spotify:track:${songId}`; // ID de la canción a añadir en formato URI
+
+        const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/tracks`;
+        const addBody = {
+            uris: [trackUri], 
+        };
+        const spotifyResponse = await axios.post(spotifyApiUrl, addBody, {
+            headers: {
+                'Authorization': `Bearer ${token.trim()}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        console.info("Spotify API Response:", spotifyResponse.data);
+
+        // Rta
+
         respuesta = {
             error: false,
             codigo: 200,
