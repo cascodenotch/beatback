@@ -288,5 +288,85 @@ async function addSongToSet(request, response) {
     response.send(respuesta);
 }
 
+async function getSetsByUser(request, response){
+    let respuesta;
 
-module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong };
+    try {
+      // Usamos request.params.id_user para acceder al parámetro de la URL
+      const sql = `SELECT * FROM djset WHERE id_user = ?`;  // Consulta para obtener los sets de un usuario específico
+      const params = [request.params.id_user];  // Accedemos al parámetro de la URL
+  
+      const [result] = await pool.query(sql, params);  // Ejecutamos la consulta
+  
+      if (result.length === 0) {
+        respuesta = {
+          error: false,
+          codigo: 404,
+          mensaje: 'No se encontraron sets para este usuario',
+          sets: []  // En caso de que no haya sets
+        };
+      } else {
+        console.info("Consulta exitosa en getSetsByUser:", { sql, params, result });
+        respuesta = {
+          error: false,
+          codigo: 200,
+          mensaje: 'Sets cargados con éxito',
+          sets: result  // Resultados de la consulta
+        };
+      }
+    } catch (error) {
+      console.log('Error en la consulta SQL:', error);
+      respuesta = {
+        error: true,
+        codigo: 500,
+        mensaje: 'Error interno al obtener sets',
+        detalles: error.message
+      };
+    }
+  
+    response.send(respuesta);  // Enviar la respuesta al cliente
+  };
+
+  async function deleteSet(request, response) {
+    let respuesta;
+
+    try {
+        // Paso 1: Eliminar las canciones asociadas al set
+        const deleteSongsSql = `DELETE FROM setsong WHERE id_set = ?`;
+        const [songResult] = await pool.query(deleteSongsSql, [request.params.id_set]);
+        console.info("Canciones eliminadas del set:", { songResult });
+
+        // Paso 2: Eliminar el set de la base de datos
+        const deleteSetSql = `DELETE FROM djset WHERE id_set = ?`;
+        const [setResult] = await pool.query(deleteSetSql, [request.params.id_set]);
+        console.info("Set eliminado de la base de datos:", { setResult });
+
+        if (setResult.affectedRows > 0) {
+            respuesta = {
+                error: false,
+                codigo: 200,
+                mensaje: 'Set eliminado con éxito',
+            };
+        } else {
+            respuesta = {
+                error: true,
+                codigo: 404,
+                mensaje: 'No se encontró el set con el id proporcionado',
+            };
+        }
+
+    } catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno al eliminar el set',
+            detalles: error.message
+        };
+    }
+
+    response.send(respuesta);
+}
+
+
+module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };
