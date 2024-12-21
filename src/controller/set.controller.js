@@ -1,6 +1,7 @@
 const {pool} = require("../database");
 const axios = require("axios");
 const {Song} = require ("../models/song")
+const { getTrackDetails } = require('../dataset');
 
 async function addSet (request, response){
 
@@ -278,7 +279,7 @@ async function getSetSongs (request, response){
         const idSongsArray = result.map(song => song.id_song);
         console.log (idSongsArray);
         const ids = idSongsArray.join(',');
-        console.log (ids);
+        console.log ("IDs de canciones concatenados:",ids);
 
         // Paso 2: Obtener token del usuario desde la base de datos
         const userQuery = `
@@ -291,9 +292,13 @@ async function getSetSongs (request, response){
         const [userResult] = await pool.query(userQuery, values2);
         
         const token = userResult[0]?.token;
-        console.log(token);
+        console.log("Token de usuario obtenido:",token);
 
-        // Paso 3: Obtener la información de las canciones usando la API 
+        // Paso 4: Obtener las características de audio de la canción del dataset
+        const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+        console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
+
+        // Paso 3: Obtener la información general de las canciones usando la API 
         const spotifyApiUrl = await axios.get('https://api.spotify.com/v1/tracks', {
         headers: {
             'Authorization': `Bearer ${token.trim()}`, // Elimina espacios extra
@@ -304,17 +309,33 @@ async function getSetSongs (request, response){
         }
         });
 
-        // Paso 4: Crear las instancias de Song con los datos de la API
+        // console.log("Respuesta de Spotify:", spotifyApiUrl.data);
+
+        // Paso 5: Crear las instancias de Song con los datos de la API
         const songs = spotifyApiUrl.data.tracks.map(track => {
-            return new Song(
+            // Buscar las características de audio correspondientes para cada canción desde el dataset
+            const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
+        
+            // Crear la instancia de Song
+            const song = new Song(
                 track.album.images[0]?.url, 
                 track.artists.map(artist => artist.name).join(', '),
                 track.duration_ms,           
                 track.id,                    
-                track.name                   
+                track.name,
+                audioFeatures ? audioFeatures.danceability : null,  
+                audioFeatures ? audioFeatures.energy : null,        
+                audioFeatures ? audioFeatures.tempo : null,
+                audioFeatures ? audioFeatures.key : null     
             );
+        
+            // Imprimir el objeto song creado para ver todos sus datos
+            console.log('Song Created:', song);
+        
+            // Devolver el objeto song
+            return song;
         });
-
+        
         // Rta
         respuesta = {
             error: false,
@@ -322,9 +343,9 @@ async function getSetSongs (request, response){
             mensaje: 'Canciones cargadas con éxito',
             songs: songs
     }
-        
+
     }catch (error) {
-        console.log('Error en la consulta SQL:', error);
+        console.log("Error en el proceso de getSetSongs:", error);
         respuesta = {
             error: true,
             codigo: 500,
@@ -481,6 +502,5 @@ async function getSetsByUser(request, response){
 
     response.send(respuesta);
 }
-
 
 module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };
