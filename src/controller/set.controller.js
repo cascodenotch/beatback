@@ -313,24 +313,27 @@ async function getSetSongs (request, response){
 
         // Paso 5: Crear las instancias de Song con los datos de la API
         const songs = spotifyApiUrl.data.tracks.map(track => {
+            
             // Buscar las características de audio correspondientes para cada canción desde el dataset
             const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
 
+            // Formatear la duración, energía y otros valores
             const formattedDuration = formatDuration(track.duration_ms);
-        
+            const conversionKey = audioFeatures ? convertKeyToPitch(audioFeatures.key) : null;
+
             // Crear la instancia de Song
             const song = new Song(
                 track.album.images[0]?.url, 
-                track.artists.map(artist => artist.name).join(', '),
-                formattedDuration,           
-                track.id,                    
-                track.name,
+                track.artists.map(artist => artist.name).join(', '), 
+                formattedDuration, 
+                track.id, 
+                track.name, 
                 audioFeatures ? audioFeatures.danceability : null,  
-                audioFeatures ? audioFeatures.energy : null,        
-                audioFeatures ? audioFeatures.tempo : null,
-                audioFeatures ? audioFeatures.key : null     
+                audioFeatures ? audioFeatures.energy : null,  
+                audioFeatures ? audioFeatures.tempo : null, 
+                conversionKey 
             );
-        
+                
             // Imprimir el objeto song creado para ver todos sus datos
             console.log('Song Created:', song);
         
@@ -505,11 +508,19 @@ async function getSetsByUser(request, response){
     response.send(respuesta);
 }
 
-// Función de formateo
+// Funciones de formateo
 function formatDuration(durationMs) {
     const minutes = Math.floor(durationMs / 60000);
     const seconds = ((durationMs % 60000) / 1000).toFixed(0);
     return `${minutes}:${(parseInt(seconds) < 10 ? '0' : '') + seconds}`;
+}
+
+function convertKeyToPitch(key) {
+const pitches = [
+    "C", "C#", "D", "D#", "E", "F", "F#",
+    "G", "G#", "A", "A#", "B"
+];
+return pitches[key % 12];  // Asegura que el valor esté en el rango 0-11
 }
 
 module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };

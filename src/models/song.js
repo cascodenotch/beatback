@@ -7,8 +7,8 @@ class Song {
         this.songName = songName;
         this.danceability = danceability; 
         this.energy = energy;             
-        this.tempo = tempo;            
-        this.key = key;                 
+        this.tempo = tempo;               
+        this.key = key;                   
     }
 }
 
