@@ -1,5 +1,7 @@
 const { pool } = require('../database'); // Importar el pool desde tu archivo database.js
 const axios = require("axios");
+const {Song} = require ("../models/song")
+const { getTrackDetails } = require('../dataset');
 
 const getSavedTracks = async (req, res) => {
     try {
@@ -30,23 +32,47 @@ const getSavedTracks = async (req, res) => {
             }
         });
 
-        // Mapear los resultados para extraer la información que necesitas
-        const tracks = response.data.items
-            .map(item => {
-                const track = item.track;
+         // Mapear los resultados para extraer las canciones que no están en el set actual
+         const tracks = response.data.items
+         .map(item => item.track)
+         .filter(track => !songIdsInSet.includes(track.id)); // Filtrar las canciones ya añadidas
 
-                return {
-                    songId: track.id, // ID de la canción
-                    songName: track.name, // Nombre de la canción
-                    artistName: track.artists.map(artist => artist.name).join(', '), // Artista(s)
-                    durationMs: track.duration_ms, // Duración en milisegundos
-                    albumImage: track.album.images[0]?.url // Imagen de la carátula
-                };
-            })
-            .filter(track => !songIdsInSet.includes(track.songId)); // Filtrar las canciones ya añadidas
+        //  Conseguir los ids y concatenarlos para utilizarlos en la funcion get track details
+         const idstoFetch = tracks.map(track => track.id);
+         const ids = idstoFetch.join(',');
+         console.log ("IDs de canciones concatenados:",ids);
 
-        // Responder con los datos requeridos
-        res.send(tracks);
+         // Obtener las características de audio de la canción del dataset
+        const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+        console.log("IDs de canciones enviados a getTrackDetails:", ids.split(','));
+        console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
+
+        // Crear instancias de Song con los datos obtenidos
+        const songs = tracks.map(track => {
+        
+          // Buscar las características de audio correspondientes para cada canción
+        const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
+
+        // Crear la instancia de Song
+         const song = new Song(
+             track.album.images[0]?.url,
+             track.artists.map(artist => artist.name).join(', '),
+             track.duration_ms,
+             track.id,
+             track.name,
+             audioFeatures ? audioFeatures.danceability : null,
+             audioFeatures ? audioFeatures.energy : null,
+             audioFeatures ? audioFeatures.tempo : null,
+             audioFeatures ? audioFeatures.key : null
+         );
+
+         console.log('Song Created:', song); // Para verificar los datos de las canciones
+         return song;
+     });
+
+      // Responder con los datos requeridos
+      res.send(songs);
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al obtener las canciones' });
@@ -92,22 +118,50 @@ const searchTracks = async (req, res) => {
       }
     });
 
-    // Mapear los resultados para extraer la información necesaria
-    const tracks = response.data.tracks.items.map(item => {
-      return {
-        songId: item.id, // ID de la canción
-        songName: item.name, // Nombre de la canción
-        artistName: item.artists.map(artist => artist.name).join(', '), // Artista(s)
-        durationMs: item.duration_ms, // Duración en milisegundos
-        albumImage: item.album.images[0]?.url // Imagen de la carátula
-      };
+    console.log("Respuesta completa de la API:", response.data);
+    console.log("Items de las canciones:", response.data.tracks.items);
+
+
+        //  Conseguir los ids y concatenarlos para utilizarlos en la funcion get track details
+        const tracks = response.data.tracks.items; 
+        const idstoFetch = tracks.map(track => track.id);
+        const ids = idstoFetch.join(',');
+        console.log ("IDs de canciones concatenados:",ids);
+
+        // Obtener las características de audio de la canción del dataset
+       const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+       console.log("IDs de canciones enviados a getTrackDetails:", ids.split(','));
+       console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
+
+      // Filtrar canciones que no están en el set
+      const filteredTracks = tracks.filter(track => !setSongIds.includes(track.id));
+
+      // Crear instancias de Song con los datos obtenidos
+      const songs = filteredTracks.map(track => {
+       
+      // Buscar las características de audio correspondientes para cada canción
+       const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
+
+       // Crear la instancia de Song
+        const song = new Song(
+            track.album.images[0]?.url,
+            track.artists.map(artist => artist.name).join(', '),
+            track.duration_ms,
+            track.id,
+            track.name,
+            audioFeatures ? audioFeatures.danceability : null,
+            audioFeatures ? audioFeatures.energy : null,
+            audioFeatures ? audioFeatures.tempo : null,
+            audioFeatures ? audioFeatures.key : null
+        );
+
+        console.log('Song Created:', song); // Para verificar los datos de las canciones
+        return song;
     });
 
-    // Filtrar canciones que ya están en el set
-    const filteredTracks = tracks.filter(track => !setSongIds.includes(track.songId));
-
     // Responder con los datos filtrados
-    res.send(filteredTracks);
+    res.send(songs);
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al buscar canciones' });
@@ -138,8 +192,6 @@ const getTrackUrl = async (req, res) => {
       res.status(500).json({ message: 'Error al obtener la URL de la canción' });
   }
 };
-
-
 
 module.exports = { getSavedTracks, searchTracks, getTrackUrl };
 

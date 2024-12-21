@@ -294,11 +294,11 @@ async function getSetSongs (request, response){
         const token = userResult[0]?.token;
         console.log("Token de usuario obtenido:",token);
 
-        // Paso 4: Obtener las características de audio de la canción del dataset
+        // Paso 3: Obtener las características de audio de la canción del dataset
         const audioFeaturesDataset = await getTrackDetails(ids.split(','));
         console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
 
-        // Paso 3: Obtener la información general de las canciones usando la API 
+        // Paso 4: Obtener la información general de las canciones usando la API 
         const spotifyApiUrl = await axios.get('https://api.spotify.com/v1/tracks', {
         headers: {
             'Authorization': `Bearer ${token.trim()}`, // Elimina espacios extra
@@ -315,12 +315,14 @@ async function getSetSongs (request, response){
         const songs = spotifyApiUrl.data.tracks.map(track => {
             // Buscar las características de audio correspondientes para cada canción desde el dataset
             const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
+
+            const formattedDuration = formatDuration(track.duration_ms);
         
             // Crear la instancia de Song
             const song = new Song(
                 track.album.images[0]?.url, 
                 track.artists.map(artist => artist.name).join(', '),
-                track.duration_ms,           
+                formattedDuration,           
                 track.id,                    
                 track.name,
                 audioFeatures ? audioFeatures.danceability : null,  
@@ -501,6 +503,13 @@ async function getSetsByUser(request, response){
     }
 
     response.send(respuesta);
+}
+
+// Función de formateo
+function formatDuration(durationMs) {
+    const minutes = Math.floor(durationMs / 60000);
+    const seconds = ((durationMs % 60000) / 1000).toFixed(0);
+    return `${minutes}:${(parseInt(seconds) < 10 ? '0' : '') + seconds}`;
 }
 
 module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };
