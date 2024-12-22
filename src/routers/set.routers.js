@@ -10,6 +10,7 @@ router.delete("/set/song", setCtrl.deleteSong);
 router.post("/set/song", setCtrl.addSongToSet);
 router.get("/set/:id_user", setCtrl.getSetsByUser);
 router.delete('/set/:id_set', setCtrl.deleteSet); 
+router.put("/set/songs", setCtrl.reorderSongs);
 // router.get("/set/analisis", setCtrl.songAnalysis);
 
 module.exports = router; 

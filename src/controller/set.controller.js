@@ -504,4 +504,58 @@ async function getSetsByUser(request, response){
     response.send(respuesta);
 }
 
-module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };
+async function reorderSongs(request, response) {
+    let respuesta;
+
+    try {
+        const { id_set, range_start, insert_before, songs} = request.body;
+        console.info (request.body)
+
+        // Paso: Obtener el token del usuario y el id_playlist desde la base de datos
+        const userQuery = `
+        SELECT user.token, djset.id_playlist
+        FROM user
+        JOIN djset ON user.id_user = djset.id_user
+        WHERE djset.id_set = ?;`;
+        
+        const [userResult] = await pool.query(userQuery, [id_set]);
+
+        const token = userResult[0]?.token;
+        const id_playlist = userResult[0]?.id_playlist;
+
+        // Paso: Llamar a la API de Spotify para reordenar las canciones
+        const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/tracks`;
+
+        const body = {
+            range_start,
+            insert_before,
+            uris: songs.map(songId => `spotify:track:${songId}`)
+        };
+
+        const spotifyResponse = await axios.put(spotifyApiUrl, body, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        respuesta = {
+            error: false,
+            codigo: 200,
+            mensaje: 'Canciones reordenadas con éxito',
+        };
+
+    } catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno al eliminar el set',
+            detalles: error.message
+        };
+    }
+
+    response.send(respuesta);
+}
+
+module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet, reorderSongs};
