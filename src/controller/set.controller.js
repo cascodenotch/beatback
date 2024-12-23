@@ -194,12 +194,44 @@ async function deleteSong (request, response){
     
     try {
 
+          // Paso 1: Obtener la posición de la canción que se eliminará
+          const positionQuery = `
+          SELECT position 
+          FROM setsong 
+          WHERE id_set = ? AND id_song = ?
+          LIMIT 1
+      `;
+      const positionValues = [request.body.id_set, request.body.id_song];
+      const [positionResult] = await pool.query(positionQuery, positionValues);
+
+      if (positionResult.length === 0) {
+          respuesta = {
+              error: true,
+              codigo: 404,
+              mensaje: 'La canción no existe en el set especificado',
+          };
+          return response.send(respuesta);
+      }
+
+      const position = positionResult[0].position;
+
         // Paso 1: Eliminar la canción en la bbdd
         const sql = `DELETE FROM setsong WHERE id_song = ? AND id_set = ?`;
         const values = [request.body.id_song, request.body.id_set];
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en delete song:", { sql, values, result });
+
+         // Paso 3: Reordenar las posiciones restantes
+         const reordenarSql = `
+             UPDATE setsong
+             SET position = position - 1
+             WHERE id_set = ? AND position > ?
+         `;
+         const reordenarValues = [request.body.id_set, position];
+         const [reordenarResult] = await pool.query(reordenarSql, reordenarValues);
+
+         console.info("Reordenamiento exitoso:", reordenarResult);
 
         // Paso 2: Obtener token del usuario y el id_playlist desde la base de datos
         const userQuery = `
@@ -363,9 +395,20 @@ async function addSongToSet(request, response) {
 
     try {
         const { setId, songId } = request.body; // Obtenemos el ID del set y el ID de la canción
+
+           // Paso 1: Obtener la posición más alta en el set actual
+           const maxPositionQuery = `SELECT MAX(position) AS maxPosition FROM setsong WHERE id_set = ?`;
+           const [maxPositionResult] = await pool.query(maxPositionQuery, [setId]);
+   
+           const maxPosition = maxPositionResult[0]?.maxPosition || 0; // Si no hay canciones, maxPosition será 0
+           const newPosition = maxPosition + 1;
+   
+           console.info("Nueva posición calculada:", newPosition);
+   
+
         // Paso 1: Insertamos la relación entre la canción y el set
-        const sql = `INSERT INTO setsong (id_set, id_song) VALUES (?, ?)`;
-        const values = [setId, songId];
+        const sql = `INSERT INTO setsong (id_set, id_song, position) VALUES (?, ?, ?)`;
+        const values = [setId, songId, newPosition];
 
         const [result] = await pool.query(sql, values);
         console.info("Canción añadida al set con éxito:", { sql, values, result });
