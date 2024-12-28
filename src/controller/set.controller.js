@@ -61,7 +61,6 @@ async function addSet (request, response){
         console.info("Tabla djset actualizada con id_playlist:", { updateSql, updateValues, updateResult });
 
         // Rta
-
         respuesta = {
             error: false,
             codigo: 200,
@@ -194,51 +193,49 @@ async function deleteSong (request, response){
     
     try {
 
-          // Paso 1: Obtener la posición de la canción que se eliminará
-          const positionQuery = `
-          SELECT position 
-          FROM setsong 
-          WHERE id_set = ? AND id_song = ?
-          LIMIT 1
-      `;
-      const positionValues = [request.body.id_set, request.body.id_song];
-      const [positionResult] = await pool.query(positionQuery, positionValues);
+        // Paso 1: Obtener la posición de la canción que se eliminará
+        const positionQuery = `
+        SELECT position 
+        FROM setsong 
+        WHERE id_set = ? AND id_song = ?
+        LIMIT 1`;
+        const positionValues = [request.body.id_set, request.body.id_song];
+        const [positionResult] = await pool.query(positionQuery, positionValues);
 
-      if (positionResult.length === 0) {
-          respuesta = {
-              error: true,
-              codigo: 404,
-              mensaje: 'La canción no existe en el set especificado',
-          };
-          return response.send(respuesta);
-      }
+        if (positionResult.length === 0) {
+            respuesta = {
+                error: true,
+                codigo: 404,
+                mensaje: 'La canción no existe en el set especificado',
+            };
+            return response.send(respuesta);
+        }
 
-      const position = positionResult[0].position;
+        const position = positionResult[0].position;
 
-        // Paso 1: Eliminar la canción en la bbdd
+        // Paso 2: Eliminar la canción en la bbdd
         const sql = `DELETE FROM setsong WHERE id_song = ? AND id_set = ?`;
         const values = [request.body.id_song, request.body.id_set];
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en delete song:", { sql, values, result });
 
-         // Paso 3: Reordenar las posiciones restantes
+        // Paso 3: Reordenar las posiciones restantes
          const reordenarSql = `
-             UPDATE setsong
-             SET position = position - 1
-             WHERE id_set = ? AND position > ?
-         `;
+         UPDATE setsong
+         SET position = position - 1
+         WHERE id_set = ? AND position > ?`;
          const reordenarValues = [request.body.id_set, position];
          const [reordenarResult] = await pool.query(reordenarSql, reordenarValues);
 
          console.info("Reordenamiento exitoso:", reordenarResult);
 
-        // Paso 2: Obtener token del usuario y el id_playlist desde la base de datos
+        // Paso 4: Obtener token del usuario y el id_playlist desde la base de datos
         const userQuery = `
         SELECT user.token, djset.id_playlist
         FROM user
         JOIN djset ON user.id_user = djset.id_user
-        WHERE djset.id_set = ?;`;
+        WHERE djset.id_set = ?`;
 
         const values2 = [request.body.id_set];
         const [userResult] = await pool.query(userQuery, values2);
@@ -249,7 +246,7 @@ async function deleteSong (request, response){
         console.info("Token obtenido:", token);
         console.info("ID de la playlist obtenida:", id_playlist);
 
-        // Paso 3: Eliminar la canción usando la API 
+        // Paso 5: Eliminar la canción usando la API 
         const trackUri = `spotify:track:${request.body.id_song}`; // ID de la canción a eliminar en formato URI
 
         const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/tracks`;
@@ -302,7 +299,7 @@ async function getSetSongs (request, response){
     try {
 
         // Paso 1: Obtener los ids de las canciones en el set
-        const sql = `SELECT * FROM setsong WHERE id_set = ?`;
+        const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
         const params = [request.query.id_set];
 
         const [result] = await pool.query(sql, params);
@@ -341,8 +338,6 @@ async function getSetSongs (request, response){
         }
         });
 
-        // console.log("Respuesta de Spotify:", spotifyApiUrl.data);
-
         // Paso 5: Crear las instancias de Song con los datos de la API
         const songs = spotifyApiUrl.data.tracks.map(track => {
             
@@ -375,7 +370,7 @@ async function getSetSongs (request, response){
             codigo: 200,
             mensaje: 'Canciones cargadas con éxito',
             songs: songs
-    }
+        }
 
     }catch (error) {
         console.log("Error en el proceso de getSetSongs:", error);
@@ -396,24 +391,23 @@ async function addSongToSet(request, response) {
     try {
         const { setId, songId } = request.body; // Obtenemos el ID del set y el ID de la canción
 
-           // Paso 1: Obtener la posición más alta en el set actual
-           const maxPositionQuery = `SELECT MAX(position) AS maxPosition FROM setsong WHERE id_set = ?`;
-           const [maxPositionResult] = await pool.query(maxPositionQuery, [setId]);
-   
-           const maxPosition = maxPositionResult[0]?.maxPosition || 0; // Si no hay canciones, maxPosition será 0
-           const newPosition = maxPosition + 1;
-   
-           console.info("Nueva posición calculada:", newPosition);
-   
+        // Paso 1: Obtener la posición más alta en el set actual
+        const maxPositionQuery = `SELECT MAX(position) AS maxPosition FROM setsong WHERE id_set = ?`;
+        const [maxPositionResult] = await pool.query(maxPositionQuery, [setId]);
 
-        // Paso 1: Insertamos la relación entre la canción y el set
+        const maxPosition = maxPositionResult[0]?.maxPosition || 0; // Si no hay canciones, maxPosition será 0
+        const newPosition = maxPosition + 1;
+
+        console.info("Nueva posición calculada:", newPosition);
+
+        // Paso 2: Insertamos la relación entre la canción y el set
         const sql = `INSERT INTO setsong (id_set, id_song, position) VALUES (?, ?, ?)`;
         const values = [setId, songId, newPosition];
 
         const [result] = await pool.query(sql, values);
         console.info("Canción añadida al set con éxito:", { sql, values, result });
 
-        // Paso 2: Obtener token del usuario y el id_playlist desde la base de datos
+        // Paso 3: Obtener token del usuario y el id_playlist desde la base de datos
         const userQuery = `
         SELECT user.token, djset.id_playlist
         FROM user
@@ -429,7 +423,7 @@ async function addSongToSet(request, response) {
         console.info("Token obtenido:", token);
         console.info("ID de la playlist obtenida:", id_playlist);
 
-        // Paso 3: Añadir la canción usando la API 
+        // Paso 4: Añadir la canción usando la API 
         const trackUri = `spotify:track:${songId}`; // ID de la canción a añadir en formato URI
 
         const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/tracks`;
@@ -554,7 +548,7 @@ async function reorderSongs(request, response) {
         const { id_set, range_start, insert_before, songs} = request.body;
         console.info (request.body)
 
-        // Paso: Obtener el token del usuario y el id_playlist desde la base de datos
+        // Paso 1: Obtener el token del usuario y el id_playlist desde la base de datos
         const userQuery = `
         SELECT user.token, djset.id_playlist
         FROM user
@@ -566,7 +560,7 @@ async function reorderSongs(request, response) {
         const token = userResult[0]?.token;
         const id_playlist = userResult[0]?.id_playlist;
 
-        // Paso: Llamar a la API de Spotify para reordenar las canciones
+        // Paso 2: Llamar a la API de Spotify para reordenar las canciones
         const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/tracks`;
 
         const body = {
@@ -581,6 +575,29 @@ async function reorderSongs(request, response) {
                 'Content-Type': 'application/json',
             },
         });
+
+        // Paso 3: actualizar la posición en la BBDD
+
+        // Primero se asigna una posición temporal que no genera conflicto con los valores unicos
+        const tempPosition = `UPDATE setsong 
+        SET position = position + 1000 
+        WHERE id_set = ?`;
+
+        const [tempResult] = await pool.query(tempPosition, [id_set]);
+
+        for (let i = 0; i < songs.length; i++) {
+            
+            const songId = songs[i]; 
+            const position = i + 1; 
+
+            const query = `
+            UPDATE setsong
+            SET position = ?
+            WHERE id_set = ? AND id_song = ?
+            `;
+    
+            const [queryResult] = await pool.query(query, [position, id_set, songId]);
+        }
 
         respuesta = {
             error: false,
