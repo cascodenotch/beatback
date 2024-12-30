@@ -610,7 +610,7 @@ async function reorderSongs(request, response) {
         respuesta = {
             error: true,
             codigo: 500,
-            mensaje: 'Error interno al eliminar el set',
+            mensaje: 'Error interno al reordenar set',
             detalles: error.message
         };
     }
@@ -618,4 +618,87 @@ async function reorderSongs(request, response) {
     response.send(respuesta);
 }
 
-module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet, reorderSongs};
+async function setAnalysis (request, response) {
+
+    let respuesta;
+
+    try {
+    
+  // Paso 1: Obtener los ids de las canciones en el set
+  const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
+  const params = [request.query.id_set];
+
+  const [result] = await pool.query(sql, params);
+  console.info("Consulta exitosa en get set songs:", { sql, params, result });
+
+  const idSongsArray = result.map(song => song.id_song);
+  console.log (idSongsArray);
+  const ids = idSongsArray.join(',');
+  console.log ("IDs de canciones concatenados:",ids);
+
+   // Paso 3: Obtener las características de audio de la canción del dataset
+   const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+   console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
+
+   const songs = audioFeaturesDataset.map(track => {
+    return {
+        danceability: track.danceability, // Danceability
+        tempo: track.tempo,        // Tempo
+    };
+});
+
+     // Variables para cálculos
+     let totalSongs = 0;
+     let totalDuration = 0;
+     let totalDanceability = 0;
+     let totalTempo = 0;
+
+    // Recorrer las canciones para sumar valores
+     for (let song of songs) {
+        // Verificar que la canción tenga datos válidos
+        if (song.danceability && song.tempo) {
+            totalSongs++;
+            totalDanceability += song.danceability;
+            totalTempo += song.tempo;
+        }
+    }
+
+    if (totalSongs === 0) {
+        return response.send({
+            error: true,
+            codigo: 404,
+            mensaje: 'No hay canciones válidas con datos en el set',
+        });
+    }
+
+    // Calcular promedios
+    let averageDanceability = totalDanceability / totalSongs;
+    let averageTempo = totalTempo / totalSongs;
+
+    respuesta = {
+        error: false,
+        codigo: 200,
+        mensaje: 'Canciones reordenadas con éxito',
+        data: {
+            totalSongs,
+            totalDuration, 
+            averageDanceability,
+            averageTempo,
+        },
+    };
+
+    } catch (error) {
+        console.log('Error en la consulta SQL:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno al reordenar set',
+            detalles: error.message
+        };
+    }
+
+    response.send(respuesta);
+}
+
+
+module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet, reorderSongs, setAnalysis};
