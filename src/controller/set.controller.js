@@ -642,8 +642,9 @@ async function setAnalysis (request, response) {
 
    const songs = audioFeaturesDataset.map(track => {
     return {
-        danceability: track.danceability, // Danceability
-        tempo: track.tempo,        // Tempo
+        danceability: track.danceability,
+        tempo: track.tempo, 
+        duration: track.duration       
     };
 });
 
@@ -658,6 +659,7 @@ async function setAnalysis (request, response) {
         // Verificar que la canción tenga datos válidos
         if (song.danceability && song.tempo) {
             totalSongs++;
+            totalDuration += song.duration
             totalDanceability += song.danceability;
             totalTempo += song.tempo;
         }
@@ -678,7 +680,7 @@ async function setAnalysis (request, response) {
     respuesta = {
         error: false,
         codigo: 200,
-        mensaje: 'Canciones reordenadas con éxito',
+        mensaje: 'Canciones analizadas con éxito',
         data: {
             totalSongs,
             totalDuration, 
@@ -692,7 +694,7 @@ async function setAnalysis (request, response) {
         respuesta = {
             error: true,
             codigo: 500,
-            mensaje: 'Error interno al reordenar set',
+            mensaje: 'Error interno al analizar set',
             detalles: error.message
         };
     }
