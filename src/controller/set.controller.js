@@ -625,43 +625,45 @@ async function setAnalysis (request, response) {
     try {
     
   // Paso 1: Obtener los ids de las canciones en el set
-  const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
-  const params = [request.query.id_set];
+    const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
+    const params = [request.query.id_set];
 
-  const [result] = await pool.query(sql, params);
-  console.info("Consulta exitosa en get set songs:", { sql, params, result });
+    const [result] = await pool.query(sql, params);
 
-  const idSongsArray = result.map(song => song.id_song);
-  console.log (idSongsArray);
-  const ids = idSongsArray.join(',');
-  console.log ("IDs de canciones concatenados:",ids);
+    const idSongsArray = result.map(song => song.id_song);
+    const ids = idSongsArray.join(',');
 
    // Paso 3: Obtener las características de audio de la canción del dataset
-   const audioFeaturesDataset = await getTrackDetails(ids.split(','));
-   console.log("Características de audio obtenidas del dataset:", audioFeaturesDataset);
+    const audioFeaturesDataset = await getTrackDetails(ids.split(','));
 
-   const songs = audioFeaturesDataset.map(track => {
-    return {
-        danceability: track.danceability,
-        tempo: track.tempo, 
-        duration: track.duration       
-    };
-});
+    const songs = audioFeaturesDataset.map(track => {
+        return {
+            danceability: track.danceability,
+            tempo: track.tempo, 
+            duration: track.duration, 
+            energy: track.energy, 
+            key: track.key,
+        };
+        });
 
      // Variables para cálculos
      let totalSongs = 0;
      let totalDuration = 0;
      let totalDanceability = 0;
      let totalTempo = 0;
+     let arrayEnergy = [];
+     let arrayKey = [];
 
     // Recorrer las canciones para sumar valores
      for (let song of songs) {
         // Verificar que la canción tenga datos válidos
-        if (song.danceability && song.tempo) {
+        if (song.duration && song.danceability && song.tempo && song.energy && song.key) {
             totalSongs++;
             totalDuration += song.duration
             totalDanceability += song.danceability;
             totalTempo += song.tempo;
+            arrayEnergy.push(song.energy);
+            arrayKey.push (song.key);
         }
     }
 
@@ -686,6 +688,8 @@ async function setAnalysis (request, response) {
             totalDuration, 
             averageDanceability,
             averageTempo,
+            arrayEnergy,
+            arrayKey
         },
     };
 
