@@ -21,6 +21,7 @@ async function getTrackDetails(trackIds) {
                         danceability: parseFloat(data.danceability), 
                         energy: parseFloat(data.energy),
                         duration: parseFloat (data.duration_ms),
+                        valence: parseFloat(data.valence),
                     });
                 }
             })

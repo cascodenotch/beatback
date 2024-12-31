@@ -643,8 +643,11 @@ async function setAnalysis (request, response) {
             duration: track.duration, 
             energy: track.energy, 
             key: track.key,
+            valence: track.valence,
         };
         });
+    
+        console.log (songs);
 
      // Variables para cálculos
      let totalSongs = 0;
@@ -653,6 +656,12 @@ async function setAnalysis (request, response) {
      let totalTempo = 0;
      let arrayEnergy = [];
      let arrayKey = [];
+     let veryLow = 0;
+     let Low = 0;
+     let Neutral = 0;
+     let High = 0; 
+     let veryHigh = 0;
+     let arrayValence = [];
 
     // Recorrer las canciones para sumar valores
      for (let song of songs) {
@@ -665,7 +674,23 @@ async function setAnalysis (request, response) {
             arrayEnergy.push(song.energy);
             arrayKey.push (song.key);
         }
+
+        if (song.valence >= 0 && song.valence < 0.2) {
+            veryLow++;
+        } else if (song.valence >= 0.2 && song.valence < 0.4) {
+            Low++;
+        } else if (song.valence >= 0.4 && song.valence < 0.6) {
+            Neutral++;
+        } else if (song.valence >= 0.6 && song.valence < 0.8) {
+            High++;
+        } else if (song.valence >= 0.8 && song.valence <= 1.0) {
+            veryHigh++;
+        }
+
     }
+
+    arrayValence = [veryLow, Low, Neutral, High, veryHigh];
+
 
     if (totalSongs === 0) {
         return response.send({
@@ -689,7 +714,8 @@ async function setAnalysis (request, response) {
             averageDanceability,
             averageTempo,
             arrayEnergy,
-            arrayKey
+            arrayKey,
+            arrayValence
         },
     };
 
