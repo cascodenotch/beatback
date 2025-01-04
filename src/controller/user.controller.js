@@ -78,10 +78,10 @@ async function spotifyCallback(req, res) {
         const userData = userResponse.data;
         console.log("Datos del usuario:", userData);
 
-        // Comprobar si el usuario ya existe en la base de datos
-        const sqlSelect = "SELECT * FROM user WHERE id_spotify = ?";
-        const paramsSelect = [userData.id];
-        const [existingUser] = await pool.query(sqlSelect, paramsSelect);
+        // Comprobar si el usuario ya existe en la base de datos usando id_spotify
+        const sqlSelectUser = "SELECT id_user FROM user WHERE id_spotify = ?";
+        const paramsSelectUser = [userData.id];
+        const [existingUser] = await pool.query(sqlSelectUser, paramsSelectUser);
 
         if (existingUser.length === 0) {
             // Insertar nuevo usuario
@@ -92,7 +92,7 @@ async function spotifyCallback(req, res) {
                 userData.id,
                 tokenData.access_token,
             ];
-            const [insertResult] = await pool.query(sqlInsert, paramsInsert);
+            await pool.query(sqlInsert, paramsInsert);
         } else {
             // Actualizar token del usuario existente
             const sqlUpdate = `UPDATE user SET token = ? WHERE id_spotify = ?`;
@@ -100,18 +100,30 @@ async function spotifyCallback(req, res) {
                 tokenData.access_token,
                 userData.id,
             ];
-            const [updateResult] = await pool.query(sqlUpdate, paramsUpdate);
+            await pool.query(sqlUpdate, paramsUpdate);
         }
 
-        // Redirigir al frontend con el token
-        respuesta = {
-            error: false,
-            codigo: 200,
-            mensaje: 'Vinculación exitosa',
-            token: tokenData.access_token,
-        };
-        res.redirect(`http://localhost:4200/editar-set-vacia?token=${tokenData.access_token}`);
-        console.log(respuesta.mensaje);
+        // Ahora obtenemos el id_user del usuario
+        const id_user = existingUser[0].id_user;
+        console.log("id_user obtenido de la base de datos:", id_user);
+
+        // Verificar si el usuario tiene sets creados usando id_user
+        const sqlSelectSets = "SELECT * FROM djset WHERE id_user = ?";
+        const paramsSelectSets = [id_user];  // Usar id_user para consultar los sets
+        console.log("Ejecutando consulta de sets con id_user:", id_user);
+        const [sets] = await pool.query(sqlSelectSets, paramsSelectSets);
+
+        console.log("Sets encontrados:", sets);
+
+        // Redirigir dependiendo de si el usuario tiene sets
+        if (sets.length > 0) {
+            console.log("Usuario tiene sets. Redirigiendo a mis-sets.");
+            res.redirect(`http://localhost:4200/mis-sets?token=${tokenData.access_token}`);
+        } else {
+            console.log("Usuario no tiene sets. Redirigiendo a editar-set-vacia.");
+            res.redirect(`http://localhost:4200/editar-set-vacia?token=${tokenData.access_token}`);
+        }
+
     } catch (error) {
         respuesta = {
             error: true,
@@ -123,6 +135,7 @@ async function spotifyCallback(req, res) {
         res.status(500).json(respuesta);
     }
 }
+
 
 
 // Obtener datos del usuario basado en el token
