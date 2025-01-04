@@ -2,34 +2,30 @@ const {pool} = require("../database");
 const axios = require("axios");
 const {Song} = require ("../models/song")
 
-async function addSet (request, response){
+async function addSet(request, response) {
+    let respuesta;
 
-    let respuesta; 
-    
     try {
-        
         // Paso 1: Insertar el set en la base de datos
         const sql = `INSERT INTO djset (id_user, titulo, imagen) VALUES (?, ?, ?)`;
         const values = [
             request.body.id_user,
             request.body.titulo,
-            request.body.imagen,
+            "assets/Img/disc.jpeg", // Valor temporal para la imagen
         ];
 
         const [result] = await pool.query(sql, values);
         console.info("Consulta exitosa en añadir set:", { sql, values, result });
 
-        const id_set = result.insertId; 
+        const id_set = result.insertId;
 
         // Paso 2: Obtener id_spotify y token del usuario desde la base de datos
         const userQuery = `SELECT id_spotify, token FROM user WHERE id_user = ?`;
         const values2 = [request.body.id_user];
-        const [userResult] = await pool.query(userQuery,values2);
+        const [userResult] = await pool.query(userQuery, values2);
 
         const id_spotify = userResult[0].id_spotify;
-        console.log (id_spotify);
         const token = userResult[0].token;
-        console.log(token);
 
         // Paso 3: Crear la playlist en Spotify usando la API
         const spotifyApiUrl = `https://api.spotify.com/v1/users/${id_spotify}/playlists`;
@@ -47,38 +43,41 @@ async function addSet (request, response){
             },
         });
 
-        console.info("Playlist creada en Spotify:", spotifyResponse.data);
-
-        // Paso 4 capturar la id de la playlist en spotify
         const playlistId = spotifyResponse.data.id; // ID de la playlist creada
         console.info("Playlist creada en Spotify con ID:", playlistId);
 
-        // Paso 5 añadir id de la playlist en bbdd
-        const updateSql = `UPDATE djset SET id_playlist = ? WHERE id_set = ?`;
-        const updateValues = [playlistId, id_set];
+        // Paso 4: Obtener la URL de la imagen de la playlist (si existe)
+        const playlistImage = spotifyResponse.data.images.length > 0 
+            ? spotifyResponse.data.images[0].url 
+            : "assets/Img/disc.jpeg"; // Imagen por defecto si no hay portada
+
+        // Paso 5: Actualizar la tabla `djset` con el id_playlist y la imagen de la playlist
+        const updateSql = `UPDATE djset SET id_playlist = ?, imagen = ? WHERE id_set = ?`;
+        const updateValues = [playlistId, playlistImage, id_set];
         const [updateResult] = await pool.query(updateSql, updateValues);
-        console.info("Tabla djset actualizada con id_playlist:", { updateSql, updateValues, updateResult });
 
-        // Rta
+        console.info("Tabla djset actualizada con id_playlist e imagen:", { updateSql, updateValues, updateResult });
 
+        // Respuesta
         respuesta = {
             error: false,
             codigo: 200,
             mensaje: "Set añadido con éxito y playlist creada en Spotify",
             id_set: result.insertId,
+            playlistImage: playlistImage,
         };
 
-    }catch (error) {
+    } catch (error) {
         console.log('Error en la consulta SQL:', error);
         respuesta = {
             error: true,
             codigo: 500,
             mensaje: 'Error interno añadir set',
-            detalles: error.message  
+            detalles: error.message,
         };
     }
 
-    response.send (respuesta);
+    response.send(respuesta);
 }
 
 async function changeTitle (request, response){
@@ -402,55 +401,131 @@ async function addSongToSet(request, response) {
     response.send(respuesta);
 }
 
-async function getSetsByUser(request, response){
+async function getSetsByUser(request, response) {
     let respuesta;
 
     try {
-      // Usamos request.params.id_user para acceder al parámetro de la URL
-      const sql = `SELECT * FROM djset WHERE id_user = ?`;  // Consulta para obtener los sets de un usuario específico
-      const params = [request.params.id_user];  // Accedemos al parámetro de la URL
-  
-      const [result] = await pool.query(sql, params);  // Ejecutamos la consulta
-  
-      if (result.length === 0) {
-        respuesta = {
-          error: false,
-          codigo: 404,
-          mensaje: 'No se encontraron sets para este usuario',
-          sets: []  // En caso de que no haya sets
-        };
-      } else {
-        console.info("Consulta exitosa en getSetsByUser:", { sql, params, result });
-        respuesta = {
-          error: false,
-          codigo: 200,
-          mensaje: 'Sets cargados con éxito',
-          sets: result  // Resultados de la consulta
-        };
-      }
+        // Paso 1: Obtener los sets del usuario desde la base de datos
+        const sql = `SELECT * FROM djset WHERE id_user = ?`;
+        const params = [request.params.id_user];
+
+        const [sets] = await pool.query(sql, params);
+
+        if (sets.length === 0) {
+            respuesta = {
+                error: false,
+                codigo: 404,
+                mensaje: 'No se encontraron sets para este usuario',
+                sets: [],
+            };
+        } else {
+            // Paso 2: Obtener el token del usuario
+            const userQuery = `SELECT token FROM user WHERE id_user = ?`;
+            const [userResult] = await pool.query(userQuery, [request.params.id_user]);
+
+            if (userResult.length === 0) {
+                throw new Error('Usuario no encontrado');
+            }
+
+            const token = userResult[0].token;
+
+            // Paso 3: Iterar sobre los sets y actualizar las imágenes si es necesario
+            for (const set of sets) {
+                if (set.id_playlist) {
+                    try {
+                        // Llamar a la API de Spotify para obtener la playlist
+                        const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${set.id_playlist}`;
+                        const spotifyResponse = await axios.get(spotifyApiUrl, {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
+                        });
+
+                        const playlistData = spotifyResponse.data;
+                        const playlistImage = playlistData.images.length > 0 
+                            ? playlistData.images[0].url 
+                            : null;
+
+                        // Actualizar la imagen en la base de datos si es diferente
+                        if (playlistImage && playlistImage !== set.imagen) {
+                            const updateSql = `UPDATE djset SET imagen = ? WHERE id_set = ?`;
+                            await pool.query(updateSql, [playlistImage, set.id_set]);
+                            set.imagen = playlistImage; // Actualizar el objeto en memoria
+                        }
+                    } catch (error) {
+                        console.warn(`Error al obtener la playlist ${set.id_playlist} de Spotify:`, error.message);
+                        // Continuar con el siguiente set incluso si hay un error
+                    }
+                }
+            }
+
+            // Paso 4: Preparar la respuesta con los sets actualizados
+            console.info("Consulta exitosa en getSetsByUser:", { sql, params, sets });
+            respuesta = {
+                error: false,
+                codigo: 200,
+                mensaje: 'Sets cargados con éxito',
+                sets: sets,
+            };
+        }
     } catch (error) {
-      console.log('Error en la consulta SQL:', error);
-      respuesta = {
-        error: true,
-        codigo: 500,
-        mensaje: 'Error interno al obtener sets',
-        detalles: error.message
-      };
+        console.log('Error en la consulta SQL o API:', error);
+        respuesta = {
+            error: true,
+            codigo: 500,
+            mensaje: 'Error interno al obtener sets',
+            detalles: error.message,
+        };
     }
-  
-    response.send(respuesta);  // Enviar la respuesta al cliente
-  };
+
+    response.send(respuesta);
+}
 
   async function deleteSet(request, response) {
     let respuesta;
 
     try {
-        // Paso 1: Eliminar las canciones asociadas al set
+        // Paso 1: Obtener token y id_playlist desde la base de datos
+        const query = `
+            SELECT u.token, d.id_playlist
+            FROM user u
+            INNER JOIN djset d ON u.id_user = d.id_user
+            WHERE d.id_set = ?
+        `;
+        const [result] = await pool.query(query, [request.params.id_set]);
+
+        if (result.length === 0) {
+            return response.send({
+                error: true,
+                codigo: 404,
+                mensaje: "No se encontró el set con el id proporcionado",
+            });
+        }
+
+        const { token, id_playlist } = result[0];
+
+        // Paso 2: Eliminar la playlist de Spotify si tiene una id_playlist válida
+        if (id_playlist) {
+            const spotifyApiUrl = `https://api.spotify.com/v1/playlists/${id_playlist}/followers`;
+
+            try {
+                await axios.delete(spotifyApiUrl, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                console.info("Playlist eliminada de Spotify:", id_playlist);
+            } catch (error) {
+                console.error("Error al eliminar la playlist de Spotify:", error.message);
+            }
+        }
+
+        // Paso 3: Eliminar las canciones asociadas al set
         const deleteSongsSql = `DELETE FROM setsong WHERE id_set = ?`;
         const [songResult] = await pool.query(deleteSongsSql, [request.params.id_set]);
         console.info("Canciones eliminadas del set:", { songResult });
 
-        // Paso 2: Eliminar el set de la base de datos
+        // Paso 4: Eliminar el set de la base de datos
         const deleteSetSql = `DELETE FROM djset WHERE id_set = ?`;
         const [setResult] = await pool.query(deleteSetSql, [request.params.id_set]);
         console.info("Set eliminado de la base de datos:", { setResult });
@@ -459,28 +534,29 @@ async function getSetsByUser(request, response){
             respuesta = {
                 error: false,
                 codigo: 200,
-                mensaje: 'Set eliminado con éxito',
+                mensaje: "Set eliminado con éxito y playlist eliminada de Spotify",
             };
         } else {
             respuesta = {
                 error: true,
                 codigo: 404,
-                mensaje: 'No se encontró el set con el id proporcionado',
+                mensaje: "No se encontró el set con el id proporcionado",
             };
         }
 
     } catch (error) {
-        console.log('Error en la consulta SQL:', error);
+        console.error("Error en la consulta SQL o en la eliminación:", error);
         respuesta = {
             error: true,
             codigo: 500,
-            mensaje: 'Error interno al eliminar el set',
-            detalles: error.message
+            mensaje: "Error interno al eliminar el set",
+            detalles: error.message,
         };
     }
 
     response.send(respuesta);
 }
+
 
 
 module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet };
