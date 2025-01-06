@@ -637,7 +637,16 @@ async function setAnalysis(request, response) {
         // Asegurar que las características de audio estén en el mismo orden que los ids
         const orderedAudioFeatures = idSongsArray.map(id => {
         return audioFeaturesDataset.find(track => track.id === id);
+        }).filter(Boolean);
+
+        // Si no hay canciones válidas, retornar un error
+        if (orderedAudioFeatures.length === 0) {
+        return response.send({
+            error: true,
+            codigo: 404,
+            mensaje: 'No se encontraron canciones válidas en el set',
         });
+        }
 
         // Mapear las características de audio a un objeto
         const songs = orderedAudioFeatures.map(track => {
@@ -667,16 +676,12 @@ async function setAnalysis(request, response) {
 
         // Recorrer las canciones y realizar los cálculos
         for (let song of songs) {
-
-            // Verificar que la canción tenga datos válidos y actualizar variables
-            if (song.duration && song.danceability && song.tempo && song.energy && song.key !== null && song.key !== undefined) {
                 totalSongs++;
                 totalDuration += song.duration;
                 totalDanceability += song.danceability;
                 totalTempo += song.tempo;
                 arrayEnergy.push(song.energy);
                 arrayKey.push(song.key);
-            }
 
             // Clasificar las canciones según su valence
             if (song.valence >= 0 && song.valence < 0.2) {
@@ -692,20 +697,10 @@ async function setAnalysis(request, response) {
             }
         }
 
-        // Almacenar la distribución de los valores de valence
-        arrayValence = [veryLow, Low, Neutral, High, veryHigh];
-
-        if (totalSongs === 0) {
-            return response.send({
-                error: true,
-                codigo: 404,
-                mensaje: 'No hay canciones válidas con datos en el set',
-            });
-        }
-
-        // Calcular los promedios de danceability y tempo
+        // Calcular variables 
         let averageDanceability = totalDanceability / totalSongs;
         let averageTempo = totalTempo / totalSongs;
+        arrayValence = [veryLow, Low, Neutral, High, veryHigh];
 
         // Respuesta exitosa
         respuesta = {
