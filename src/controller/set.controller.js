@@ -618,107 +618,110 @@ async function reorderSongs(request, response) {
     response.send(respuesta);
 }
 
-async function setAnalysis (request, response) {
-
+async function setAnalysis(request, response) {
     let respuesta;
 
     try {
-    
-  // Paso 1: Obtener los ids de las canciones en el set
-    const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
-    const params = [request.query.id_set];
+        // Obtener los ids de las canciones en el set ordenadas por posición
+        const sql = `SELECT * FROM setsong WHERE id_set = ? ORDER BY position ASC`;
+        const params = [request.query.id_set];
+        const [result] = await pool.query(sql, params);
 
-    const [result] = await pool.query(sql, params);
+        // Crear un array con los ids de las canciones
+        const idSongsArray = result.map(song => song.id_song);
+        const ids = idSongsArray.join(',');
 
-    const idSongsArray = result.map(song => song.id_song);
-    const ids = idSongsArray.join(',');
+        // Obtener las características de audio de las canciones del dataset, a partir de sus ids
+        const audioFeaturesDataset = await getTrackDetails(ids.split(','));
 
-   // Paso 3: Obtener las características de audio de la canción del dataset
-    const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+        // Asegurar que las características de audio estén en el mismo orden que los ids
+        const orderedAudioFeatures = idSongsArray.map(id => {
+        return audioFeaturesDataset.find(track => track.id === id);
+        });
 
-    const songs = audioFeaturesDataset.map(track => {
-        return {
-            danceability: track.danceability,
-            tempo: track.tempo, 
-            duration: track.duration, 
-            energy: track.energy, 
-            key: track.key,
-            valence: track.valence,
+        // Mapear las características de audio a un objeto
+        const songs = orderedAudioFeatures.map(track => {
+            return {
+                danceability: track.danceability,
+                tempo: track.tempo,
+                duration: track.duration,
+                energy: track.energy,
+                key: track.key,
+                valence: track.valence,
+            };
+        });
+
+        // Inicializar variables para los cálculos
+        let totalSongs = 0;
+        let totalDuration = 0;
+        let totalDanceability = 0;
+        let totalTempo = 0;
+        let arrayEnergy = [];
+        let arrayKey = [];
+        let veryLow = 0;
+        let Low = 0;
+        let Neutral = 0;
+        let High = 0;
+        let veryHigh = 0;
+        let arrayValence = [];
+
+        // Recorrer las canciones y realizar los cálculos
+        for (let song of songs) {
+
+            // Verificar que la canción tenga datos válidos y actualizar variables
+            if (song.duration && song.danceability && song.tempo && song.energy && song.key !== null && song.key !== undefined) {
+                totalSongs++;
+                totalDuration += song.duration;
+                totalDanceability += song.danceability;
+                totalTempo += song.tempo;
+                arrayEnergy.push(song.energy);
+                arrayKey.push(song.key);
+            }
+
+            // Clasificar las canciones según su valence
+            if (song.valence >= 0 && song.valence < 0.2) {
+                veryLow++;
+            } else if (song.valence >= 0.2 && song.valence < 0.4) {
+                Low++;
+            } else if (song.valence >= 0.4 && song.valence < 0.6) {
+                Neutral++;
+            } else if (song.valence >= 0.6 && song.valence < 0.8) {
+                High++;
+            } else if (song.valence >= 0.8 && song.valence <= 1.0) {
+                veryHigh++;
+            }
+        }
+
+        // Almacenar la distribución de los valores de valence
+        arrayValence = [veryLow, Low, Neutral, High, veryHigh];
+
+        if (totalSongs === 0) {
+            return response.send({
+                error: true,
+                codigo: 404,
+                mensaje: 'No hay canciones válidas con datos en el set',
+            });
+        }
+
+        // Calcular los promedios de danceability y tempo
+        let averageDanceability = totalDanceability / totalSongs;
+        let averageTempo = totalTempo / totalSongs;
+
+        // Respuesta exitosa
+        respuesta = {
+            error: false,
+            codigo: 200,
+            mensaje: 'Canciones analizadas con éxito',
+            data: {
+                totalSongs,
+                totalDuration,
+                averageDanceability,
+                averageTempo,
+                arrayEnergy,
+                arrayKey,
+                arrayValence
+            },
         };
-        });
-    
-        console.log (songs);
-
-     // Variables para cálculos
-     let totalSongs = 0;
-     let totalDuration = 0;
-     let totalDanceability = 0;
-     let totalTempo = 0;
-     let arrayEnergy = [];
-     let arrayKey = [];
-     let veryLow = 0;
-     let Low = 0;
-     let Neutral = 0;
-     let High = 0; 
-     let veryHigh = 0;
-     let arrayValence = [];
-
-    // Recorrer las canciones para sumar valores
-     for (let song of songs) {
-        // Verificar que la canción tenga datos válidos
-        if (song.duration && song.danceability && song.tempo && song.energy && song.key) {
-            totalSongs++;
-            totalDuration += song.duration
-            totalDanceability += song.danceability;
-            totalTempo += song.tempo;
-            arrayEnergy.push(song.energy);
-            arrayKey.push (song.key);
-        }
-
-        if (song.valence >= 0 && song.valence < 0.2) {
-            veryLow++;
-        } else if (song.valence >= 0.2 && song.valence < 0.4) {
-            Low++;
-        } else if (song.valence >= 0.4 && song.valence < 0.6) {
-            Neutral++;
-        } else if (song.valence >= 0.6 && song.valence < 0.8) {
-            High++;
-        } else if (song.valence >= 0.8 && song.valence <= 1.0) {
-            veryHigh++;
-        }
-
-    }
-
-    arrayValence = [veryLow, Low, Neutral, High, veryHigh];
-
-
-    if (totalSongs === 0) {
-        return response.send({
-            error: true,
-            codigo: 404,
-            mensaje: 'No hay canciones válidas con datos en el set',
-        });
-    }
-
-    // Calcular promedios
-    let averageDanceability = totalDanceability / totalSongs;
-    let averageTempo = totalTempo / totalSongs;
-
-    respuesta = {
-        error: false,
-        codigo: 200,
-        mensaje: 'Canciones analizadas con éxito',
-        data: {
-            totalSongs,
-            totalDuration, 
-            averageDanceability,
-            averageTempo,
-            arrayEnergy,
-            arrayKey,
-            arrayValence
-        },
-    };
-
     } catch (error) {
         console.log('Error en la consulta SQL:', error);
         respuesta = {
@@ -731,6 +734,5 @@ async function setAnalysis (request, response) {
 
     response.send(respuesta);
 }
-
 
 module.exports = {addSet, changeTitle, getSet, addSongToSet, getSetSongs, deleteSong, getSetsByUser, deleteSet, reorderSongs, setAnalysis};
