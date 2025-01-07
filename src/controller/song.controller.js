@@ -185,7 +185,7 @@ const getTrackUrl = async (req, res) => {
           }
       });
 
-      const trackUrl = `https://open.spotify.com/embed/track/${response.data.id}`;
+      const trackUrl = `https://open.spotify.com/embed/track/${response.data.id}?autoplay=1`;
       res.json({ url: trackUrl });
   } catch (error) {
       console.error(error);
@@ -193,5 +193,261 @@ const getTrackUrl = async (req, res) => {
   }
 };
 
-module.exports = { getSavedTracks, searchTracks, getTrackUrl };
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const getRecommends = async (req, res) => {
+  try {
+    const accessToken = req.headers.authorization?.split(' ')[1];
+    const setId = req.params.setId;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: 'Access token missing or invalid' });
+    }
+
+    if (!setId) {
+      return res.status(400).json({ message: 'Set ID is required' });
+    }
+
+    // Obtener los IDs de canciones en el set
+    const [songsInSet] = await pool.query(
+      'SELECT id_song FROM setsong WHERE id_set = ?',
+      [setId]
+    );
+    const spotifySongIds = songsInSet.map(song => song.id_song);
+
+    // Obtener las canciones de Spotify basadas en sus ids en paralelo
+    const spotifyTrackPromises = spotifySongIds.map(id_spotify => axios.get(`https://api.spotify.com/v1/tracks/${id_spotify}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    }));
+
+    const spotifyTracks = (await Promise.all(spotifyTrackPromises)).map(response => response.data);
+
+    if (!spotifyTracks.length) {
+      return res.status(404).json({ message: 'No tracks found for recommendations' });
+    }
+
+    // Obtener recomendaciones de Last.fm en paralelo con manejo de 429
+    const recommendationsPromises = spotifyTracks.map(async (track) => {
+      try {
+        const response = await axios.get('http://ws.audioscrobbler.com/2.0/', {
+          params: {
+            method: 'track.getsimilar',
+            artist: track.artists[0].name,
+            track: track.name,
+            api_key: process.env.LASTFM_API_KEY,
+            format: 'json',
+          },
+        });
+
+        if (response.data.similartracks && response.data.similartracks.track) {
+          const spotifySearchPromises = response.data.similartracks.track.slice(0, 6).map(async (similarTrack) => {
+            try {
+              const searchResponse = await axios.get('https://api.spotify.com/v1/search', {
+                params: {
+                  q: `track:${similarTrack.name} artist:${similarTrack.artist.name}`,
+                  type: 'track',
+                  limit: 1,
+                },
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              });
+
+              if (searchResponse.data.tracks.items.length > 0) {
+                const trackData = searchResponse.data.tracks.items[0];
+                if (!spotifySongIds.includes(trackData.id)) {
+                  // Aquí puedes obtener las características de audio para cada track
+                  const audioFeaturesDataset = await getTrackDetails([trackData.id]);
+
+                  const audioFeatures = audioFeaturesDataset.find(feature => feature.id === trackData.id);
+
+                  // Crear la instancia de Song con los datos de las recomendaciones y las características de audio
+                  const song = new Song(
+                    trackData.album.images[0]?.url,
+                    trackData.artists.map(artist => artist.name).join(', '),
+                    trackData.duration_ms,
+                    trackData.id,
+                    trackData.name,
+                    audioFeatures ? audioFeatures.danceability : null,
+                    audioFeatures ? audioFeatures.energy : null,
+                    audioFeatures ? audioFeatures.tempo : null,
+                    audioFeatures ? audioFeatures.key : null
+                  );
+
+                  console.log('Song Created:', song); // Para verificar los datos de las canciones
+                  return song;
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching Spotify track for ${similarTrack.name}:`, error.message);
+              return null;
+            }
+          });
+
+          // Esperar por todas las búsquedas de Spotify
+          const searchResults = await Promise.all(spotifySearchPromises);
+
+          // Filtrar resultados válidos
+          return searchResults.filter(Boolean);
+        }
+      } catch (error) {
+        if (error.response && error.response.status === 429) {
+          // Si se recibe un error 429, espera y reintenta
+          console.warn('Rate limit exceeded. Retrying...');
+          await sleep(1000); // Espera 1 segundo antes de reintentar
+          return getRecommends(req, res); // Llamada recursiva
+        } else {
+          console.error(`Error fetching recommendations for ${track.name} by ${track.artists[0].name}:`, error.message);
+          return [];
+        }
+      }
+    });
+
+    // Recoger todas las recomendaciones
+    const allRecommendations = (await Promise.all(recommendationsPromises)).flat();
+
+    // Eliminar duplicados y limitar a 6 recomendaciones
+    const uniqueRecommendations = Array.from(new Set(allRecommendations.map(JSON.stringify)))
+      .map(JSON.parse)
+      .slice(0, 6);  // Limitar a 6
+
+    // Responder con los datos de las canciones en el formato correcto
+    res.send(uniqueRecommendations);
+
+  } catch (error) {
+    console.error('Error fetching recommendations:', error.message);
+    res.status(500).json({ message: 'Error al obtener recomendaciones' });
+  }
+};
+
+let recommendedSongIds = new Set(); // Guardar los IDs de canciones recomendadas
+
+const refreshRecommendations = async (req, res) => {
+  try {
+    const accessToken = req.headers.authorization?.split(' ')[1];
+    const setId = req.params.setId;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: 'Access token missing or invalid' });
+    }
+
+    if (!setId) {
+      return res.status(400).json({ message: 'Set ID is required' });
+    }
+
+    // Obtener los IDs de canciones ya recomendadas en el set actual
+    const [songsInSet] = await pool.query(
+      'SELECT id_song FROM setsong WHERE id_set = ?',
+      [setId]
+    );
+    const spotifySongIds = songsInSet.map(song => song.id_song);
+
+    // Obtener las canciones de Spotify basadas en sus ids en paralelo
+    const spotifyTrackPromises = spotifySongIds.map(id_spotify =>
+      axios.get(`https://api.spotify.com/v1/tracks/${id_spotify}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    );
+
+    const spotifyTracks = (await Promise.all(spotifyTrackPromises)).map(response => response.data);
+
+    if (!spotifyTracks.length) {
+      return res.status(404).json({ message: 'No tracks found for recommendations' });
+    }
+
+    // Obtener recomendaciones de Last.fm en paralelo
+    const recommendationsPromises = spotifyTracks.map(async track => {
+      try {
+        const response = await axios.get('http://ws.audioscrobbler.com/2.0/', {
+          params: {
+            method: 'track.getsimilar',
+            artist: track.artists[0].name,
+            track: track.name,
+            api_key: process.env.LASTFM_API_KEY,
+            format: 'json',
+          },
+        });
+
+        if (response.data.similartracks && response.data.similartracks.track) {
+          const spotifySearchPromises = response.data.similartracks.track.slice(0, 10).map(async similarTrack => {
+            try {
+              const searchResponse = await axios.get('https://api.spotify.com/v1/search', {
+                params: {
+                  q: `track:${similarTrack.name} artist:${similarTrack.artist.name}`,
+                  type: 'track',
+                  limit: 1,
+                },
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+
+              if (searchResponse.data.tracks.items.length > 0) {
+                const trackData = searchResponse.data.tracks.items[0];
+                if (
+                  !spotifySongIds.includes(trackData.id) && // No está en el set actual
+                  !recommendedSongIds.has(trackData.id) // No se recomendó previamente
+                ) {
+                  const audioFeaturesDataset = await getTrackDetails([trackData.id]);
+                  const audioFeatures = audioFeaturesDataset.find(feature => feature.id === trackData.id);
+
+                  // Crear la instancia de Song con los datos de las recomendaciones y las características de audio
+                  const song = new Song(
+                    trackData.album.images[0]?.url,
+                    trackData.artists.map(artist => artist.name).join(', '),
+                    trackData.duration_ms,
+                    trackData.id,
+                    trackData.name,
+                    audioFeatures ? audioFeatures.danceability : null,
+                    audioFeatures ? audioFeatures.energy : null,
+                    audioFeatures ? audioFeatures.tempo : null,
+                    audioFeatures ? audioFeatures.key : null
+                  );
+
+                  return song;
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching Spotify track for ${similarTrack.name}:`, error.message);
+              return null;
+            }
+          });
+
+          const searchResults = await Promise.all(spotifySearchPromises);
+          return searchResults.filter(Boolean); // Filtrar resultados válidos
+        }
+      } catch (error) {
+        console.error(`Error fetching recommendations for ${track.name} by ${track.artists[0].name}:`, error.message);
+        return [];
+      }
+    });
+
+    const allRecommendations = (await Promise.all(recommendationsPromises)).flat();
+
+    // Filtrar duplicados y agregar las nuevas recomendaciones al historial
+    const freshRecommendations = Array.from(new Set(allRecommendations.map(JSON.stringify)))
+      .map(JSON.parse)
+      .filter(song => !recommendedSongIds.has(song.songId)) // Excluir canciones ya recomendadas
+      .slice(0, 6); // Limitar a 6 canciones
+
+    // Actualizar el conjunto de IDs de canciones recomendadas
+    freshRecommendations.forEach(song => recommendedSongIds.add(song.songId));
+
+    if (freshRecommendations.length === 0) {
+      return res.status(404).json({ message: 'No new recommendations available' });
+    }
+
+    res.json(freshRecommendations);
+  } catch (error) {
+    console.error('Error refreshing recommendations:', error.message);
+    res.status(500).json({ message: 'Error al refrescar las recomendaciones' });
+  }
+};
+
+
+
+
+module.exports = { getSavedTracks, searchTracks, getTrackUrl, getRecommends, refreshRecommendations };
 
