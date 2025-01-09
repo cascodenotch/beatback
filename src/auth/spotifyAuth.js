@@ -1,9 +1,12 @@
+require('dotenv').config(); // Cargar las variables de entorno desde el archivo .env
+
 const querystring = require("querystring");
 const axios = require("axios");
 
-const client_id = "0186d7c12abc4561bdeec31c8480496a";
-const client_secret = "648001fad97c4e5aa3915a5936088db8";
-const REDIRECT_URI = 'https://beatfront-cascodenotchs-projects.vercel.app/spotify/callback'; // Asegúrate de que sea la URL correcta
+// Usar las variables de entorno en lugar de valores hardcodeados
+const client_id = process.env.SPOTIFY_CLIENT_ID;
+const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI; // Usar la variable de entorno REDIRECT_URI
 
 const spotifyAuth = {
   // Generar la URL de autorización
@@ -12,7 +15,7 @@ const spotifyAuth = {
     return `https://accounts.spotify.com/authorize?${querystring.stringify({
       response_type: "code",
       client_id,
-      scope:scope,
+      scope: scope,
       redirect_uri: REDIRECT_URI, // Actualizado para coincidir con la URI de redirección
     })}`;
   },

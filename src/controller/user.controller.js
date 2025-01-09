@@ -1,6 +1,7 @@
 const {pool} = require('../database'); // Conexión a la base de datos con promesas
 const querystring = require('querystring');
 const axios = require('axios');
+require('dotenv').config(); // Cargar las variables de entorno desde el archivo .env
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const REDIRECT_URI = 'https://beatfront-cascodenotchs-projects.vercel.app/spotify/callback'; // Cambiar al dominio de producción si es necesario
