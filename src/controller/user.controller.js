@@ -80,7 +80,7 @@ async function spotifyCallback(req, res) {
         console.log("Datos del usuario:", userData);
 
         // Comprobar si el usuario ya existe en la base de datos usando id_spotify
-        const sqlSelectUser = "SELECT id_user FROM user WHERE id_spotify = ?";
+        const sqlSelectUser = "SELECT id_user, photo FROM user WHERE id_spotify = ?";
         const paramsSelectUser = [userData.id];
         const [existingUser] = await pool.query(sqlSelectUser, paramsSelectUser);
 
@@ -89,23 +89,24 @@ async function spotifyCallback(req, res) {
             const sqlInsert = `INSERT INTO user (email, photo, id_spotify, token) VALUES (?, ?, ?, ?)`;
             const paramsInsert = [
                 userData.email,
-                userData.images[0]?.url || "",
+                userData.images[0]?.url || "",  // Imagen del usuario
                 userData.id,
                 tokenData.access_token,
             ];
             await pool.query(sqlInsert, paramsInsert);
         } else {
-            // Actualizar token del usuario existente
-            const sqlUpdate = `UPDATE user SET token = ? WHERE id_spotify = ?`;
+            // Actualizar token y foto del usuario existente
+            const sqlUpdate = `UPDATE user SET token = ?, photo = ? WHERE id_spotify = ?`;
             const paramsUpdate = [
                 tokenData.access_token,
+                userData.images[0]?.url || "",  // Actualización de la imagen
                 userData.id,
             ];
             await pool.query(sqlUpdate, paramsUpdate);
         }
 
         // Ahora obtenemos el id_user del usuario
-        const id_user = existingUser[0].id_user;
+        const id_user = existingUser.length > 0 ? existingUser[0].id_user : (await pool.query(sqlSelectUser, paramsSelectUser))[0].id_user;
         console.log("id_user obtenido de la base de datos:", id_user);
 
         // Verificar si el usuario tiene sets creados usando id_user
@@ -136,6 +137,7 @@ async function spotifyCallback(req, res) {
         res.status(500).json(respuesta);
     }
 }
+
 
 
 
