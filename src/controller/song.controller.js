@@ -76,7 +76,7 @@ const getTracks = async (req, res) => {
         audioFeatures ? audioFeatures.danceability : null,
         audioFeatures ? audioFeatures.energy : null,
         audioFeatures ? audioFeatures.tempo : null,
-        audioFeatures ? audioFeatures.key : null
+        audioFeatures ? audioFeatures.clave : null
       );
     });
 
