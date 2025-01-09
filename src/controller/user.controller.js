@@ -3,7 +3,7 @@ const querystring = require('querystring');
 const axios = require('axios');
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
-const REDIRECT_URI = 'http://localhost:3000/spotify/callback'; // Cambiar al dominio de producción si es necesario
+const REDIRECT_URI = 'https://beatfront-cascodenotchs-projects.vercel.app/spotify/callback'; // Cambiar al dominio de producción si es necesario
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
@@ -118,10 +118,10 @@ async function spotifyCallback(req, res) {
         // Redirigir dependiendo de si el usuario tiene sets
         if (sets.length > 0) {
             console.log("Usuario tiene sets. Redirigiendo a mis-sets.");
-            res.redirect(`http://localhost:4200/mis-sets?token=${tokenData.access_token}`);
+            res.redirect(`https://beatfront-cascodenotchs-projects.vercel.app/mis-sets?token=${tokenData.access_token}`);
         } else {
             console.log("Usuario no tiene sets. Redirigiendo a editar-set-vacia.");
-            res.redirect(`http://localhost:4200/editar-set-vacia?token=${tokenData.access_token}`);
+            res.redirect(`https://beatfront-cascodenotchs-projects.vercel.app/editar-set-vacia?token=${tokenData.access_token}`);
         }
 
     } catch (error) {
