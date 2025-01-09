@@ -753,11 +753,11 @@ async function setAnalysis(request, response) {
         // Recorrer las canciones y realizar los cálculos
         for (let song of songs) {
                 totalSongs++;
-                totalDuration += song.duration_ms;
+                totalDuration += song.duration;
                 totalDanceability += song.danceability;
                 totalTempo += song.tempo;
                 arrayEnergy.push(song.energy);
-                arrayKey.push(song.clave);
+                arrayKey.push(song.key);
 
             // Clasificar las canciones según su valence
             if (song.valence >= 0 && song.valence < 0.2) {
