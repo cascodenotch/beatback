@@ -4,7 +4,7 @@ const axios = require('axios');
 require('dotenv').config(); // Cargar las variables de entorno desde el archivo .env
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
-const REDIRECT_URI = 'https://beatfront-cascodenotchs-projects.vercel.app/spotify/callback'; // Cambiar al dominio de producción si es necesario
+const REDIRECT_URI = 'https://beatback-cascodenotchs-projects.vercel.app/spotify/callback'; // Cambiar al dominio de producción si es necesario
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
