@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const client_id = "0186d7c12abc4561bdeec31c8480496a";
 const client_secret = "648001fad97c4e5aa3915a5936088db8";
-const REDIRECT_URI = 'https://beatback-cascodenotchs-projects.vercel.app/spotify/callback'; // Asegúrate de que sea la URL correcta
+const REDIRECT_URI = 'https://beatfront-cascodenotchs-projects.vercel.app/spotify/callback'; // Asegúrate de que sea la URL correcta
 
 const spotifyAuth = {
   // Generar la URL de autorización
