@@ -48,6 +48,9 @@ const getTracks = async (req, res) => {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
+        params: {
+          limit: 21,  // Cambiado a 21 canciones si no hay parámetro de búsqueda
+        },
       });
 
       tracks = response.data.items.map(item => item.track);
