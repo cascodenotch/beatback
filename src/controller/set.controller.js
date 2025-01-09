@@ -729,9 +729,9 @@ async function setAnalysis(request, response) {
             return {
                 danceability: track.danceability,
                 tempo: track.tempo,
-                duration: track.duration,
+                duration: track.duration_ms,
                 energy: track.energy,
-                key: track.key,
+                key: track.clave,
                 valence: track.valence,
             };
         });
