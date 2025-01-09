@@ -239,7 +239,7 @@ const getRecommends = async (req, res) => {
           audioFeatures ? audioFeatures.danceability : null,
           audioFeatures ? audioFeatures.energy : null,
           audioFeatures ? audioFeatures.tempo : null,
-          audioFeatures ? audioFeatures.key : null
+          audioFeatures ? audioFeatures.clave : null
         );
       })
       .slice(0, 6); // Limitar a 6 canciones
