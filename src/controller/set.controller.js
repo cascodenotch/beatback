@@ -353,7 +353,7 @@ async function getSetSongs (request, response){
                 audioFeatures ? audioFeatures.danceability : null,  
                 audioFeatures ? audioFeatures.energy : null,  
                 audioFeatures ? audioFeatures.tempo : null, 
-                audioFeatures ? audioFeatures.key : null, 
+                audioFeatures ? audioFeatures.clave : null, 
             );
                 
             // Imprimir el objeto song creado para ver todos sus datos
