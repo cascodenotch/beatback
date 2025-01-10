@@ -49,7 +49,7 @@ const getTracks = async (req, res) => {
           'Content-Type': 'application/json',
         },
         params: {
-          limit: 21,  // Cambiado a 21 canciones si no hay parámetro de búsqueda
+          limit: 21, // Cambiado a 21 canciones si no hay parámetro de búsqueda
         },
       });
 
@@ -59,9 +59,14 @@ const getTracks = async (req, res) => {
     // Filtrar canciones ya presentes en el set
     const filteredTracks = tracks.filter(track => !setSongIds.includes(track.id));
 
-    // Obtener características de audio
-    const ids = filteredTracks.map(track => track.id).join(',');
-    const audioFeaturesDataset = await getTrackDetails(ids.split(','));
+    // Obtener características de audio directamente desde la base de datos
+    const trackIds = filteredTracks.map(track => track.id);
+    const queryDetails = `
+      SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence 
+      FROM tracks 
+      WHERE id IN (?)
+    `;
+    const [audioFeaturesDataset] = await pool.query(queryDetails, [trackIds]);
 
     // Crear instancias de Song
     const songs = filteredTracks.map(track => {
@@ -86,6 +91,7 @@ const getTracks = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener las canciones' });
   }
 };
+
 
 
 const getTrackUrl = async (req, res) => {
