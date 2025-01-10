@@ -8,7 +8,6 @@ const getTracks = async (req, res) => {
     const accessToken = req.headers.authorization?.split(' ')[1];
     const setId = req.query.setId;
     const query = req.query.query; // Si no se pasa, se obtienen las canciones guardadas
-    const filters = req.query.filters ? JSON.parse(req.query.filters) : {}; // Analizar filtros
 
     if (!accessToken) {
       return res.status(401).json({ message: 'Access token missing or invalid' });
@@ -31,13 +30,13 @@ const getTracks = async (req, res) => {
       // Realizar búsqueda en Spotify si se proporciona un término de búsqueda
       const response = await axios.get('https://api.spotify.com/v1/search', {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         params: {
           q: query,
           type: 'track',
-          limit: 48,
+          limit: 51,
         },
       });
 
@@ -46,11 +45,11 @@ const getTracks = async (req, res) => {
       // Obtener canciones guardadas del usuario si no hay término de búsqueda
       const response = await axios.get('https://api.spotify.com/v1/me/tracks', {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         params: {
-          limit: 21, // Cambiado a 21 canciones si no hay parámetro de búsqueda
+          limit: 21,  // Cambiado a 21 canciones si no hay parámetro de búsqueda
         },
       });
 
@@ -60,42 +59,26 @@ const getTracks = async (req, res) => {
     // Filtrar canciones ya presentes en el set
     const filteredTracks = tracks.filter(track => !setSongIds.includes(track.id));
 
-    // Aplicar filtros adicionales (danceability, energy, key, tempo)
-    const trackIds = filteredTracks.map(track => track.id);
-    const queryDetails = `
-      SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence 
-      FROM tracks 
-      WHERE id IN (?)
-    `;
-    const [audioFeaturesDataset] = await pool.query(queryDetails, [trackIds]);
-
-    // Aplicar filtros a los datos obtenidos de la base de datos
-    const filteredAudioFeatures = audioFeaturesDataset.filter(feature => {
-      if (filters.danceability && feature.danceability < filters.danceability) return false;
-      if (filters.energy && feature.energy < filters.energy) return false;
-      if (filters.key && feature.clave !== filters.key) return false;
-      if (filters.tempo && feature.tempo !== filters.tempo) return false;
-      return true;
-    });
+    // Obtener características de audio
+    const ids = filteredTracks.map(track => track.id).join(',');
+    const audioFeaturesDataset = await getTrackDetails(ids.split(','));
 
     // Crear instancias de Song
-    const songs = filteredTracks
-      .filter(track => filteredAudioFeatures.some(feature => feature.id === track.id))
-      .map(track => {
-        const audioFeatures = filteredAudioFeatures.find(feature => feature.id === track.id);
+    const songs = filteredTracks.map(track => {
+      const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
 
-        return new Song(
-          track.album.images[0]?.url,
-          track.artists.map(artist => artist.name).join(', '),
-          track.duration_ms,
-          track.id,
-          track.name,
-          audioFeatures ? audioFeatures.danceability : null,
-          audioFeatures ? audioFeatures.energy : null,
-          audioFeatures ? audioFeatures.tempo : null,
-          audioFeatures ? audioFeatures.clave : null
-        );
-      });
+      return new Song(
+        track.album.images[0]?.url,
+        track.artists.map(artist => artist.name).join(', '),
+        track.duration_ms,
+        track.id,
+        track.name,
+        audioFeatures ? audioFeatures.danceability : null,
+        audioFeatures ? audioFeatures.energy : null,
+        audioFeatures ? audioFeatures.tempo : null,
+        audioFeatures ? audioFeatures.clave : null
+      );
+    });
 
     res.json(songs);
   } catch (error) {
@@ -103,6 +86,7 @@ const getTracks = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener las canciones' });
   }
 };
+
 
 
 
