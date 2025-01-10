@@ -8,6 +8,7 @@ const getTracks = async (req, res) => {
     const accessToken = req.headers.authorization?.split(' ')[1];
     const setId = req.query.setId;
     const query = req.query.query; // Si no se pasa, se obtienen las canciones guardadas
+    const filters = req.query.filters ? JSON.parse(req.query.filters) : {}; // Filtros opcionales
 
     if (!accessToken) {
       return res.status(401).json({ message: 'Access token missing or invalid' });
@@ -49,7 +50,7 @@ const getTracks = async (req, res) => {
           'Content-Type': 'application/json',
         },
         params: {
-          limit: 21, // Cambiado a 21 canciones si no hay parámetro de búsqueda
+          limit: 21,
         },
       });
 
@@ -59,14 +60,40 @@ const getTracks = async (req, res) => {
     // Filtrar canciones ya presentes en el set
     const filteredTracks = tracks.filter(track => !setSongIds.includes(track.id));
 
-    // Obtener características de audio directamente desde la base de datos
+    // Obtener características de audio con filtros dinámicos
     const trackIds = filteredTracks.map(track => track.id);
-    const queryDetails = `
+    const conditions = [];
+    const queryParams = [];
+
+    if (filters.danceability) {
+      conditions.push('danceability >= ?');
+      queryParams.push(filters.danceability);
+    }
+    if (filters.energy) {
+      conditions.push('energy >= ?');
+      queryParams.push(filters.energy);
+    }
+    if (filters.key) {
+      conditions.push('clave = ?');
+      queryParams.push(filters.key);
+    }
+    if (filters.tempo) {
+      conditions.push('tempo >= ?');
+      queryParams.push(filters.tempo);
+    }
+
+    let queryDetails = `
       SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence 
       FROM tracks 
-      WHERE id IN (?)
+      WHERE id IN (?) 
     `;
-    const [audioFeaturesDataset] = await pool.query(queryDetails, [trackIds]);
+    queryParams.unshift(trackIds);
+
+    if (conditions.length > 0) {
+      queryDetails += ' AND ' + conditions.join(' AND ');
+    }
+
+    const [audioFeaturesDataset] = await pool.query(queryDetails, queryParams);
 
     // Crear instancias de Song
     const songs = filteredTracks.map(track => {
