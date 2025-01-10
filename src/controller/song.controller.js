@@ -36,7 +36,7 @@ const getTracks = async (req, res) => {
         params: {
           q: query,
           type: 'track',
-          limit: 51,
+          limit: 48,
         },
       });
 
