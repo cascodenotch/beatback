@@ -1,34 +1,34 @@
-// const mysql = require("mysql2");
+const mysql = require("mysql2");
 
-// const pool = mysql.createPool({
-//     host: process.env.DB_HOST || "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
-//     user: process.env.DB_USER || "avnadmin",
-//     password: process.env.DB_PASSWORD || "AVNS_fCwsxkOkRUpTc3Jouee",
-//     database: process.env.DB_NAME || "BeatCraft",
-//     port: process.env.DB_PORT || 10834,
-//     connectionLimit: 10,
-// }).promise();
+const pool = mysql.createPool({
+    host: process.env.DB_HOST || "mysql-14b2e1c7-beatcraft.f.aivencloud.com",
+    user: process.env.DB_USER || "avnadmin",
+    password: process.env.DB_PASSWORD || "AVNS_fCwsxkOkRUpTc3Jouee",
+    database: process.env.DB_NAME || "BeatCraft",
+    port: process.env.DB_PORT || 10834,
+    connectionLimit: 10,
+}).promise();
 
-// console.log("Conexión con la BBDD Creada");
+console.log("Conexión con la BBDD Creada");
 
-// async function getTrackDetails(trackIds) {
-//     try {
-//         const query = `
-//             SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence 
-//             FROM tracks 
-//             WHERE id IN (?)
-//         `;
+async function getTrackDetails(trackIds) {
+    try {
+        const query = `
+            SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence 
+            FROM tracks 
+            WHERE id IN (?)
+        `;
         
-//         const [rows] = await pool.query(query, [trackIds]);
+        const [rows] = await pool.query(query, [trackIds]);
 
-//         return rows;
-//     } catch (err) {
-//         console.error("Error al obtener los detalles de las pistas:", err);
-//         throw err;
-//     }
-// }
+        return rows;
+    } catch (err) {
+        console.error("Error al obtener los detalles de las pistas:", err);
+        throw err;
+    }
+}
 
-// module.exports = { getTrackDetails, pool };
+module.exports = { getTrackDetails, pool };
 
 // CODIGO UTILIZADO PARA COPIAR CSV EN BBDD
 
