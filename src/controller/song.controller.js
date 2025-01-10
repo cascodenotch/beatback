@@ -7,17 +7,18 @@ const getTracks = async (req, res) => {
   try {
     const accessToken = req.headers.authorization?.split(' ')[1];
     const setId = req.query.setId;
-    const query = req.query.query; // Si no se pasa, se obtienen las canciones guardadas
+    const query = req.query.query || ''; // Término de búsqueda opcional
+    const filters = req.query; // Captura filtros desde la query string
 
     if (!accessToken) {
       return res.status(401).json({ message: 'Access token missing or invalid' });
     }
 
     if (!setId) {
-      return res.status(400).json({ message: 'Set ID missing' });
+      return res.status(400).json({ message: 'Set ID is required' });
     }
 
-    // Obtener las canciones del set actual
+    // Obtener canciones ya añadidas al set
     const [setSongs] = await pool.query(
       'SELECT id_song FROM setsong WHERE id_set = ?',
       [setId]
@@ -25,12 +26,11 @@ const getTracks = async (req, res) => {
     const setSongIds = setSongs.map(song => song.id_song);
 
     let tracks = [];
-
     if (query) {
-      // Realizar búsqueda en Spotify si se proporciona un término de búsqueda
+      // Buscar canciones en Spotify según el término de búsqueda
       const response = await axios.get('https://api.spotify.com/v1/search', {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         params: {
@@ -42,43 +42,55 @@ const getTracks = async (req, res) => {
 
       tracks = response.data.tracks.items;
     } else {
-      // Obtener canciones guardadas del usuario si no hay término de búsqueda
+      // Obtener canciones guardadas del usuario en Spotify si no hay término de búsqueda
       const response = await axios.get('https://api.spotify.com/v1/me/tracks', {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         params: {
-          limit: 21,  // Cambiado a 21 canciones si no hay parámetro de búsqueda
+          limit: 21,
         },
       });
 
       tracks = response.data.items.map(item => item.track);
     }
 
-    // Filtrar canciones ya presentes en el set
+    // Excluir canciones ya presentes en el set
     const filteredTracks = tracks.filter(track => !setSongIds.includes(track.id));
 
-    // Obtener características de audio
+    // Obtener IDs de canciones para las características de audio
     const ids = filteredTracks.map(track => track.id).join(',');
     const audioFeaturesDataset = await getTrackDetails(ids.split(','));
 
-    // Crear instancias de Song
-    const songs = filteredTracks.map(track => {
-      const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
-
-      return new Song(
-        track.album.images[0]?.url,
-        track.artists.map(artist => artist.name).join(', '),
-        track.duration_ms,
-        track.id,
-        track.name,
-        audioFeatures ? audioFeatures.danceability : null,
-        audioFeatures ? audioFeatures.energy : null,
-        audioFeatures ? audioFeatures.tempo : null,
-        audioFeatures ? audioFeatures.clave : null
+    // Aplicar filtros opcionales
+    const filteredByAttributes = audioFeaturesDataset.filter(track => {
+      return (
+        (!filters.danceability || track.danceability >= parseFloat(filters.danceability)) &&
+        (!filters.energy || track.energy >= parseFloat(filters.energy)) &&
+        (!filters.tempo || track.tempo >= parseFloat(filters.tempo)) &&
+        (!filters.key || track.clave == filters.key)
       );
     });
+
+    // Construir objetos Song para la respuesta
+    const songs = filteredTracks
+      .filter(track => filteredByAttributes.some(attr => attr.id === track.id))
+      .map(track => {
+        const audioFeatures = audioFeaturesDataset.find(feature => feature.id === track.id);
+
+        return new Song(
+          track.album.images[0]?.url,
+          track.artists.map(artist => artist.name).join(', '),
+          track.duration_ms,
+          track.id,
+          track.name,
+          audioFeatures?.danceability || null,
+          audioFeatures?.energy || null,
+          audioFeatures?.tempo || null,
+          audioFeatures?.clave || null
+        );
+      });
 
     res.json(songs);
   } catch (error) {
@@ -86,6 +98,22 @@ const getTracks = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener las canciones' });
   }
 };
+
+// Función auxiliar para obtener características de las canciones desde la base de datos
+async function getTrackDetails(trackIds) {
+  try {
+    const query = `
+      SELECT id, name, tempo, clave, danceability, energy, duration_ms, valence
+      FROM tracks
+      WHERE id IN (?)
+    `;
+    const [rows] = await pool.query(query, [trackIds]);
+    return rows;
+  } catch (err) {
+    console.error("Error al obtener los detalles de las pistas:", err);
+    throw err;
+  }
+}
 
 
 const getTrackUrl = async (req, res) => {
